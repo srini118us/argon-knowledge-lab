@@ -1,0 +1,9 @@
+arm,approach,model,n,answer_accuracy,answerable_correct,answerable_n,abstention_correct,unanswerable_n,evidence_valid,reviewed_accuracy,reviewed_evidence_valid,superseded_historical,superseded_outdated_authority,false_not_found,hallucinated_on_unanswerable,doc_retrieval_recall,usage_cost_estimate_usd
+L,Long context,gemini-3.8-flash,50,50,42,42,8,8,50,50,50,0,0,0,0,,0.708
+L,Long context,gemini-4-argon,50,50,42,42,8,8,50,50,50,3,0,0,0,,4.5557
+A,Agentic retrieval,gemini-3.8-flash,50,48,40,42,8,8,48,49,49,2,0,1,0,0.976,0.2321
+A,Agentic retrieval,gemini-4-argon,50,49,41,42,8,8,49,50,50,3,0,0,0,1.0,1.3401
+R2,RAG with captions,gemini-3.8-flash,50,46,38,42,8,8,46,46,46,1,0,2,0,0.917,0.2457
+R2,RAG with captions,gemini-4-argon,50,46,38,42,8,8,46,46,46,2,0,2,0,0.917,0.4269
+R1,Text RAG,gemini-3.8-flash,50,41,33,42,8,8,41,41,41,1,0,7,0,0.798,0.25
+R1,Text RAG,gemini-4-argon,50,41,33,42,8,8,41,41,41,4,0,7,0,0.798,0.5554

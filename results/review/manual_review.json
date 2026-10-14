@@ -1,0 +1,16 @@
+{
+  "policy": "Preregistered rule: answers the deterministic scorer cannot decide go to manual review. An entry here never changes the original `correct` score; it adds a separate reviewed column. Each entry quotes the answer and the reason.",
+  "reviewed_on": "2026-10-14",
+  "entries": {
+    "test_20261013_235517|A|gemini-4-argon|C05": {
+      "reviewed_correct": true,
+      "answer_excerpt": "payment-service should use an 8 second timeout for every PayNimbus call",
+      "reason": "Scorer false negative. The key fact pattern \\b8\\s*(seconds|s\\b) does not accept the singular adjective form '8 second timeout'. The answer states the correct current value (8 seconds, SPEC-PAY-INT@v2) and cites the required document."
+    },
+    "test_20261013_235517|A|gemini-3.8-flash|C05": {
+      "reviewed_correct": true,
+      "answer_excerpt": "payment-service should use an 8 second timeout for every PayNimbus call",
+      "reason": "Scorer false negative, same pattern limitation as above. Correct value, required document cited."
+    }
+  }
+}

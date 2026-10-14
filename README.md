@@ -8,9 +8,11 @@ Status: main benchmark complete (2026-10-14). No further paid runs have been mad
 
 ## 1. Headline results (main benchmark, valid)
 
-Run file: `results/runs/test_20261013_235517.jsonl`. Scores: `results/scores/test_20261013_235517_summary.csv`. One execution, medium thinking level, 50 test questions, 400 model runs, total logged cost **$8.31**.
+Run file: `results/runs/test_20261013_235517.jsonl`. Scores: `results/scores/test_20261013_235517_summary.csv`. One execution, medium thinking level, 50 test questions, 400 model runs, usage based cost estimate **$8.31** (excluding embeddings; see section 10).
 
-| Approach | Model | Accuracy (of 50) | Total cost | Cost per question | Mean latency | Cached input tokens (total) | Superseded citations* |
+All costs in this README are **usage based estimates** computed from API usage fields and published prices. They have not been reconciled against billing.
+
+| Approach | Model | Answer accuracy (of 50) | Est. cost | Est. cost per question | Mean latency | Cached input tokens (total) | Superseded citations* |
 |---|---|---|---|---|---|---|---|
 | Long context | Gemini 3.8 Flash | **50 (100%)** | $0.71 | $0.014 | 6.6 s | 1,614,299 | 0 of 42 |
 | Long context | Gemini 4 Argon | **50 (100%)** | $4.56 | $0.091 | 9.2 s | 44,075 | 3 of 42 |
@@ -21,9 +23,32 @@ Run file: `results/runs/test_20261013_235517.jsonl`. Scores: `results/scores/tes
 | Classic RAG, text only | Gemini 3.8 Flash | 41 (82%) | $0.25 | $0.005 | 5.0 s | 0 | 1 of 42 |
 | Classic RAG, text only | Gemini 4 Argon | 41 (82%) | $0.56 | $0.011 | 6.0 s | 0 | 4 of 42 |
 
-\* Answers to the 42 answerable questions whose citations include a document version that the answer key marks as superseded. The answer itself may still be correct.
+\* Answers to the 42 answerable questions whose citations include a document version that the answer key marks as superseded. Section 1b shows that all of these are historical references made alongside the current version, not reliance on outdated authority.
 
 Unanswerable questions: every approach and both models answered `not_found` on all 8 (no hallucinated values).
+
+### 1b. Publication metrics (added in the hardening pass, same raw data)
+
+Computed offline by `metrics.py` from the unchanged JSONL; full table in `results/analysis/test_20261013_235517_metrics.md`. Answer accuracy above is unchanged.
+
+| Approach | Model | Answer accuracy | Answerable correct (of 42) | Correct abstentions (of 8) | Evidence valid | Reviewed accuracy† | Superseded: historical / outdated authority | Doc level retrieval recall‡ |
+|---|---|---|---|---|---|---|---|---|
+| Long context | Flash | 50/50 | 42 | 8 | 50/50 | 50/50 | 0 / 0 | n/a |
+| Long context | Argon | 50/50 | 42 | 8 | 50/50 | 50/50 | 3 / 0 | n/a |
+| Agentic retrieval | Flash | 48/50 | 40 | 8 | 48/50 | 49/50 | 2 / 0 | 0.976 |
+| Agentic retrieval | Argon | 49/50 | 41 | 8 | 49/50 | 50/50 | 3 / 0 | 1.000 |
+| RAG with captions | Flash | 46/50 | 38 | 8 | 46/50 | 46/50 | 1 / 0 | 0.917 |
+| RAG with captions | Argon | 46/50 | 38 | 8 | 46/50 | 46/50 | 2 / 0 | 0.917 |
+| Text RAG | Flash | 41/50 | 33 | 8 | 41/50 | 41/50 | 1 / 0 | 0.798 |
+| Text RAG | Argon | 41/50 | 33 | 8 | 41/50 | 41/50 | 4 / 0 | 0.798 |
+
+Definitions:
+* **Answer accuracy:** the original deterministic score (key facts matched, status correct). Unchanged from the published run.
+* **Answerable correct vs correct abstentions:** accuracy on the 42 answerable questions reported separately from `not_found` on the 8 unanswerable ones, so abstention cannot inflate the headline.
+* **Evidence valid:** correct **and** every required current citation (`DOC_ID@VERSION`) present. For unanswerable questions it equals correct. In this run every correct answer was also evidence valid, so the two columns match.
+* **Superseded: historical vs outdated authority:** an answer that cites a superseded version **and** all required current versions is a historical reference (for example citing the original contract next to its amendment). One that cites a superseded version without the current one relies on outdated authority. Observed: 16 historical, **0 outdated authority**.
+* † **Reviewed accuracy:** applies only the documented overrides in `results/review/manual_review.json`. There are two, both C05 in the agentic arm: the frozen pattern `\b8\s*(seconds|s\b)` rejects the singular phrase "8 second timeout", while the answer is correct and cites the required SPEC-PAY-INT@v2. The original score is kept; the review is a separate column.
+* ‡ **Doc level retrieval recall:** the share of required documents that appear anywhere among the retrieved chunks' source documents. It does **not** show that the specific passage containing the answer was retrieved; chunk level evidence retrieval was not validated. Long context retrieves nothing and has no recall value.
 
 **Token usage per question (means from API usage fields; `results/analysis/test_20261013_235517_results_table.md`):**
 
@@ -38,18 +63,18 @@ Unanswerable questions: every approach and both models answered `not_found` on a
 | Text RAG | Flash | 4,789 | 73 | 303 | 0% | 4.8 s | 0 |
 | Text RAG | Argon | 4,922 | 101 | 26 | 0% | 4.9 s | 0 |
 
-Cost check: Argon long context, 45,556 input tokens at $2 per million plus about 170 output and thinking tokens at $10 per million gives about $0.093, against $0.091 logged (the difference is the few cached tokens). The cost formula is consistent with the usage fields.
+Cost check (estimate): Argon long context, 45,556 input tokens at $2 per million plus about 170 output and thinking tokens at $10 per million gives about $0.093, against $0.091 logged (the difference is the few cached tokens). The cost formula is consistent with the usage fields.
 
 ## 2. Findings (measured, this experiment only)
 
-1. **At about 47K tokens, long context was the most accurate approach for both models (100%).** Gemini 3.8 Flash matched Gemini 4 Argon's accuracy at about one sixth of the cost ($0.71 vs $4.56).
+1. **At about 47K tokens, long context was the most accurate approach for both models (100%).** Gemini 3.8 Flash matched Gemini 4 Argon's accuracy at about one sixth of the estimated cost ($0.71 vs $4.56). Long context was also the only approach in which the models saw the diagram images themselves (section 3).
 2. **Retrieval, not the model, limited RAG.** Argon and Flash produced identical accuracy in every question category under both RAG variants. The misses came from what the index did or did not return.
-3. **Diagrams need an explicit path into text RAG.** Text only RAG answered 0 of 8 diagram questions (correctly abstaining on 7, one incorrect answer). Adding frozen captions raised this to 5 of 8; long context, which sees the images directly, answered 8 of 8.
-4. **Agentic retrieval closed most of the gap to long context** (96% Flash, 98% Argon) at a fraction of long context cost, but was the slowest approach (about 20 to 24 s per question).
-5. **Argon cited superseded document versions more often than Flash** in all four approaches (3 vs 0, 3 vs 2, 2 vs 1, 4 vs 1 of 42). A superseded citation does not by itself mean a wrong answer; each case, with its answer, is listed in the error report. This affects audit quality.
+3. **Diagrams need an explicit path into text RAG.** Text only RAG answered 0 of 8 diagram questions (abstaining on D01 to D07, an incorrect answer on D08). Adding frozen captions raised this to 5 of 8; long context, which sees the images directly, answered 8 of 8. Because the captions were written by Flash, this compares access paths, not the two models' vision.
+4. **Agentic retrieval closed most of the gap to long context** (96% Flash, 98% Argon by the original score; 98% and 100% after the documented C05 review) at a fraction of long context estimated cost, but was the slowest approach (about 20 to 24 s per question).
+5. **Argon cited superseded document versions more often than Flash** in all four approaches (3 vs 0, 3 vs 2, 2 vs 1, 4 vs 1 of 42). On review, all 16 cases cite the current version as well (historical reference); none relies on outdated authority, and none changed an answer's correctness. The difference matters only for how clean the citation trail is.
 6. **Caching behaved very differently** (section 5): 71% of Flash's long context input was served from cache, 2% of Argon's.
 7. **At the medium thinking level, Flash used more thinking tokens than Argon** in every approach (for example 390 vs 73 per question in long context, 290 vs 20 in RAG with captions). Argon's higher cost came from its input price and missed caching, not from thinking.
-8. **As agents, the two models explored differently:** both made about 5.4 tool calls per question, but Argon took in about 16K input tokens per question against Flash's 2.9K, possibly because Argon read whole documents where Flash relied more on search snippets; this explanation is not yet verified against the tool call logs in the raw JSONL.
+8. **As agents, the two models explored differently:** both made about 5.4 tool calls per question, but Argon took in about 16K input tokens per question against Flash's 2.9K. The tool call logs in the raw JSONL show why: per question, Argon called `read_doc` 3.42 times and `search_docs` 1.26 times; Flash called `read_doc` 2.42 times and `search_docs` 2.24 times (`list_docs` 0.74 vs 0.66). Argon read more whole documents and searched less.
 9. **Mean latency hides outliers:** Argon RAG with captions averaged 12.7 s but its median was 4.7 s, so a few slow requests dominate the mean. Medians are reported alongside means.
 
 ## 3. The four approaches
@@ -60,6 +85,17 @@ All four use the same system prompt, the same answer schema (`status`, `answer`,
 * **Classic RAG, text only (R1):** documents are split into section aware chunks of about 800 tokens, embedded once with `gemini-embedding-2`, and the 8 most similar chunks are sent with the question. Diagrams are not indexed, so diagram answers are out of reach by design.
 * **RAG with diagram captions (R2):** the same as R1, plus a text caption of each diagram, generated once by Gemini 3.8 Flash from the PNG and frozen in `corpus/small/captions/` before the run. This is the fair visual comparison for text RAG; it inherits Flash's reading of the diagrams.
 * **Agentic retrieval (A):** the model gets only the question and three read only tools: `list_docs`, `search_docs` (the R2 index) and `read_doc`. It decides what to search and read, for at most 8 rounds. Diagrams are available to it through their captions.
+
+**Image access differs by approach, and this matters for every diagram result:**
+
+| Approach | What the model sees for the 4 diagrams | What a diagram score measures |
+|---|---|---|
+| Long context (L) | The PNG images themselves | The tested model's own image understanding |
+| RAG with captions (R2) | Text captions written once by Gemini 3.8 Flash, if retrieved in the top 8 | Retrieval of the caption plus reasoning over Flash's description |
+| Agentic retrieval (A) | The same Flash captions, through `search_docs` and `read_doc`; no images | Search and reading behavior plus reasoning over Flash's description |
+| Text RAG (R1) | Nothing | Abstention when the evidence is absent |
+
+So Argon's vision was exercised only in long context. In R2 and A, both models read Flash's interpretation, and any caption error would affect both equally.
 
 ## 4. Corpus and questions
 
@@ -88,11 +124,14 @@ These observations cover our requests on 2026-10-13 and 2026-10-14 only. Google 
 | Diagram (8) | 8 / 8 both | Argon 8, Flash 7 | 5 / 8 both | 0 / 8 both |
 | Unanswerable (8) | 8 / 8 both | 8 / 8 both | 8 / 8 both | 8 / 8 both |
 
-What the run logs show directly:
-* **Diagrams, RAG with captions:** both models answered `not_found` on D01 (sync or async call to PayNimbus) and D02 (Kafka topic between shipping and carrier services), whose answers are in the DIAG-01 caption. This points to the caption chunk not ranking in the top 8 for those questions. A third diagram answer was incorrect.
-* **Diagrams, text RAG:** both models abstained on 7 of 8 and gave an incorrect answer to D08, which no text document supports.
-* **Diagrams, agentic Flash:** answered `not_found` on D01.
-* **Cross document (both RAG variants) and conflicting versions (agentic):** one question each, identical across models. The specific question IDs, the models' answers and their citations are listed by `analyze_results.py` in `results/analysis/test_20261013_235517_error_report.md`.
+Counts use the original answer accuracy. Every miss, with the models' answers and citations, is in `results/analysis/test_20261013_235517_error_report.md`.
+
+* **X07, cross document, all four RAG cells:** both models in both RAG variants missed the mTLS requirement because POL-SEC-01@v2 was not among the retrieved documents. Long context and the agent answered it.
+* **D01 and D02, diagrams, RAG with captions:** both models answered `not_found` on D01 (sync or async call to PayNimbus) and D02 (Kafka topic between shipping and carrier services), whose answers are in the DIAG-01 caption. This is consistent with the caption chunk not ranking in the top 8; chunk level retrieval was not separately validated.
+* **D08, diagrams, both RAG variants:** both models answered that no component sits between the services, where the diagram shows carrier-gateway. The text of CT-SWIFT-2024@v1 says carrier-gateway "talks to the SwiftShip API on our behalf" and is the "single integration point", so the corpus wording is suggestive and the models over inferred from it. This is a corpus design weakness, recorded rather than corrected, since the questions are frozen.
+* **D01 to D07, text RAG:** both models abstained, as expected with no diagram access.
+* **D01, agentic Flash:** answered `not_found`.
+* **C05, conflicting versions, agentic (both models):** a scorer false negative, not a model error. The answer "8 second timeout" is correct and cites SPEC-PAY-INT@v2, but the frozen pattern requires "seconds" or "s". Kept as a miss in answer accuracy; corrected only in the reviewed column (section 1b).
 
 ## 7. The retrieval bug in the pilot (invalid results, kept on purpose)
 
@@ -108,9 +147,12 @@ What the run logs show directly:
 3. About 47K tokens is well within both models' context windows. **This is not a long context stress test.** Long context cost and accuracy at 150K or 500K tokens were not measured.
 4. Only the medium thinking level was benchmarked.
 5. Retrieval settings (chunk size about 800 tokens, top 8, `gemini-embedding-2`) were fixed in advance and not tuned; other settings could change RAG results.
-6. R2 captions come from Gemini 3.8 Flash, so R2 inherits Flash's diagram reading for both models.
+6. R2 and A captions come from Gemini 3.8 Flash, so both inherit Flash's diagram reading for both models; only long context tests each model's own vision (section 3).
 7. Caching results reflect two days of requests and are not a statement about Google's caching in general.
-8. The answer key is deterministic regex matching; any answer phrased in a way the patterns miss would count as incorrect. Unmatched cases should be reviewed by hand in the error report.
+8. The answer key is deterministic regex matching; any answer phrased in a way the patterns miss counts as incorrect. One such case is known (C05, singular "second"); it is documented and reviewed separately, and the frozen pattern is not changed. Other misses were checked by hand in the error report.
+9. Retrieval recall is document level only. A required document can count as retrieved even if the retrieved chunk lacked the needed passage.
+10. **Budget guardrail limits** (`run.py --budget`): the check runs before each question, so a batch can exceed the cap by up to one question's cost (an agent question can make up to 10 model calls; the largest observed was $0.0947). Embedding calls are not counted. A question that fails is recorded with no cost, although a failed request may still be billed. The guardrail compares against estimates, not billing. In the main run no question failed.
+11. Some superseded versions are cited as history next to the current version; the scorer treats that as valid. A stricter audit policy might want only current versions cited.
 
 ## 9. Reproducibility
 
@@ -126,20 +168,34 @@ $env:GEMINI_API_KEY = "..."
 .\.venv\Scripts\python.exe run.py --split test --arms R1 R2 L A --models gemini-4-argon gemini-3.8-flash --levels medium --budget 15
 .\.venv\Scripts\python.exe score.py results\runs\<new file>.jsonl              # free
 .\.venv\Scripts\python.exe analyze_results.py results\runs\<new file>.jsonl    # free
+.\.venv\Scripts\python.exe metrics.py results\runs\<new file>.jsonl            # free: publication metrics
+.\.venv\Scripts\python.exe -m pytest -q                                        # free: offline tests, no API calls
 ```
 
-`run.py` always prints an estimate and asks for confirmation; `--budget` is a hard stop. Captions are already frozen, so `make_captions.py` is not needed for a rerun. Prices are in `src/argon_lab/pricing.py` (introductory Argon pricing ends 2026-11-30; rates double after). Model behavior and caching may differ on rerun.
+The offline test suite (`tests/`, 25 tests) covers scoring (evidence validity, superseded classification, abstention, manual review, and a regression that reproduces the published accuracy from the raw JSONL), retrieval chunking and index validation with a fake embedding client (including the pilot's collapsed vector bug), and pricing and budget guardrail behavior. It needs `pytest` and makes no network calls.
+
+`run.py` always prints an estimate and asks for confirmation; `--budget` stops the batch before the next question once the estimate passes the cap (limits in section 8). Captions are already frozen, so `make_captions.py` is not needed for a rerun. Prices are in `src/argon_lab/pricing.py` (introductory Argon pricing ends 2026-11-30; rates double after). Model behavior and caching may differ on rerun.
 
 ## 10. Cost: local log vs billing
 
-| Item | Logged cost |
+| Item | Usage based estimate |
 |---|---|
 | Probes (access, function calling, File Search, three caching probes) | about $0.48 |
 | Diagram captions (4 Flash calls) | not logged; small |
 | Pilot (including invalid arms) and rerun | $1.80 |
-| Main benchmark | $8.31 |
-| Embeddings (about 110K tokens) | not priced; Google's price for `gemini-embedding-2` was not available to us |
-| **Total logged** | **about $10.60** |
+| Main benchmark (generation only) | $8.31 |
+| **Total generation estimate** | **about $10.60** |
+
+**Embeddings, reported separately and not included above.** `gemini-embedding-2` usage was not returned per call, so tokens are estimated from characters (about 4 characters per token):
+
+| Run | Index embedding (est. tokens) | Query embedding (est. tokens) |
+|---|---|---|
+| Pilot `dev_20261013_224947` | 56,212 | about 415 |
+| Rerun `dev_20261013_234055` | 56,212 | about 407 |
+| Main `test_20261013_235517` | 54,245 | about 4,438 |
+| **Total** | | **about 172K tokens** |
+
+No embedding price is applied, because a published price for `gemini-embedding-2` was not established for this project. `run.py` now prints the estimated embedding tokens separately at the end of each run.
 
 The project owner reported seeing about $25 in billing. **This discrepancy is unresolved.** Possible causes not yet checked: a prepaid credit top-up shown as the charge, other usage on the same billing account, or token types our cost formula undercounts (image tokens, tool use tokens, or thinking tokens if `total_output_tokens` already includes them). Until reconciled against the AI Studio usage page per model, the costs in this README should be read as **estimates from API usage fields**, valid for comparing approaches but not as invoice totals.
 
@@ -151,6 +207,10 @@ The project owner reported seeing about $25 in billing. **This discrepancy is un
 | `corpus/small/` | Documents, diagrams, frozen captions, SHA256 manifest |
 | `src/argon_lab/` | Corpus loader, retrieval, the four arms, scoring, pricing |
 | `run.py`, `score.py`, `analyze_results.py` | Runner with budget cap; deterministic scorer; offline analysis |
+| `metrics.py` | Offline publication metrics (section 1b) |
+| `tests/`, `pytest.ini` | Offline pytest suite, no API calls |
 | `probes/` | API verification and caching probes |
 | `results/runs/`, `results/scores/` | Raw JSONL and scored CSV files, unmodified |
+| `results/review/manual_review.json` | Documented manual review overrides (C05 only) |
+| `results/analysis/` | Results table, error report, publication metrics |
 | `docs/plan.md`, `docs/medium_outline.md` | Preregistered plan; article outline |

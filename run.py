@@ -6,6 +6,17 @@ appended to results/runs/<batch>.jsonl. Score with score.py.
 
     python run.py --split dev --arms R2 L A --models gemini-4-argon gemini-3.8-flash --levels medium --budget 6
     python run.py --split dev --arms L --models gemini-4-argon --levels medium --questions V01 V08 --dry-run
+
+Budget guardrail, exactly what it does and does not cover:
+  * --budget is checked BEFORE each question against the running total of
+    usage based estimates, so a batch can overshoot by up to one question's
+    cost (the agent arm can make up to 10 model calls inside one question).
+  * Embedding calls (index build and query embeddings) are not in the total;
+    their token counts are printed at the end and priced separately.
+  * A question that fails with an exception is recorded at $0, although the
+    API may have billed some of its calls before the failure.
+  * Costs are estimates from API usage fields and src/argon_lab/pricing.py,
+    not billed amounts.
 """
 from __future__ import annotations
 
@@ -25,6 +36,7 @@ sys.path.insert(0, str(ROOT / "src"))
 from argon_lab import arms, corpus  # noqa: E402
 from argon_lab.pricing import cost_usd, estimate_usd  # noqa: E402
 
+OUT_DIR = ROOT / "results" / "runs"
 OUT_TOKENS = {"low": 1000, "medium": 3000, "high": 6000}   # assumption until the pilot measures it
 
 
@@ -82,10 +94,9 @@ def main() -> int:
         indexes["text"] = Index(client, docs, include_captions=False, size=args.size)
     if "R2" in args.arms or "A" in args.arms:
         indexes["cap"] = Index(client, docs, include_captions=True, size=args.size)
-    embed_tokens = sum(ix.embed_tokens for ix in indexes.values())
 
     batch = f"{args.split}_{datetime.now():%Y%m%d_%H%M%S}"
-    out = ROOT / "results" / "runs" / f"{batch}.jsonl"
+    out = OUT_DIR / f"{batch}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     spent = 0.0
     with out.open("w", encoding="utf-8") as f:
@@ -117,7 +128,9 @@ def main() -> int:
                 f.flush()
                 status = (row.get("answer") or {}).get("status", "ERROR") if row.get("answer") is not None else "ERROR"
                 print(f"{arm:2s} {model:17s} {level:6s} {q['id']}  {status:10s} ${cost:.4f}  total ${spent:.2f}")
-    print(f"\nSaved {out}\nSpent about ${spent:.2f} plus embeddings (~{embed_tokens:,} tokens, priced separately).")
+    embed_tokens = sum(ix.embed_tokens for ix in indexes.values())   # index build plus query embeddings
+    print(f"\nSaved {out}\nUsage based estimate ${spent:.2f}, excluding embeddings "
+          f"(~{embed_tokens:,} tokens estimated from characters, priced separately).")
     return 0
 
 
