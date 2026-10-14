@@ -1,0 +1,7 @@
+arm,model,level,n,errors,accuracy_all,accuracy_answerable,abstain_correct_unanswerable,false_not_found,citation_recall,superseded_cited,retrieval_recall,mean_latency_s,mean_input_tokens,mean_thought_tokens,cached_tokens_total,mean_tool_calls,cost_usd
+A,gemini-3.8-flash,medium,10,0,1,1,1,0,1.0,0,1.0,23.504,2481,376.1,0,4.9,0.039
+A,gemini-4-argon,medium,10,0,1,1,1,0,1.0,0,1.0,26.195,13352.5,143.1,23673,5,0.2554
+L,gemini-3.8-flash,medium,10,0,1,1,1,0,1.0,0,,23.998,45630.6,318.5,348819,0,0.121
+L,gemini-4-argon,medium,10,0,1,1,1,0,1.0,0,,15.012,45553.5,40.6,0,0,0.9226
+R2,gemini-3.8-flash,medium,10,0,0.1,0,1,1,0.0,0,0.0,4.008,1403.6,121,0,0,0.0166
+R2,gemini-4-argon,medium,10,0,0.1,0,1,1,0.0,0,0.0,127.178,1562.5,36,0,0,0.0408
