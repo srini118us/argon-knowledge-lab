@@ -1,250 +1,156 @@
-# UC4 Intelligent Procurement: Predict, Explain, Approve, Govern
+# Architecture Knowledge Assistant: Long Context vs RAG vs Agentic Retrieval on Gemini 4 Argon
 
-End to end SAP scenario on SAP BTP that turns live S/4HANA purchase order data into a supplier delivery risk score with one XGBoost model on SAP AI Core, and serves it through four paths:
+**Research question:** when should an enterprise AI architect choose classic RAG, long context inference, or agentic retrieval?
 
-1. **Conversational:** a Joule agent answers questions on live S/4HANA data and scores suppliers on demand.
-2. **Analytical:** batch scoring into SAP Datasphere, a semantic model and SAP Analytics Cloud.
-3. **Action:** HIGH risk suppliers are routed to a governed human approval in SAP Build Process Automation.
-4. **Governed reuse:** the curated result is published as an SAP Business Data Cloud (BDC) custom data product that a separate domain requests, installs and analyzes in SAC and Just Ask.
+This lab answers that question for one realistic setting: a new architect asking 50 questions about a synthetic company's architecture documentation (about 47K tokens). It compares four retrieval designs on `gemini-4-argon` and `gemini-3.8-flash`, scores every answer deterministically against a frozen answer key, and reports cost, latency and caching from API usage fields.
 
-**One model, one source of truth, many consumers.**
+Status: main benchmark complete (2026-10-14). No further paid runs have been made since. Results apply to this corpus and these dates only.
 
-![UC4 architecture overview](docs/images/uc4_architecture_overview.png)
+## 1. Headline results (main benchmark, valid)
 
-## Business problem
+Run file: `results/runs/test_20261013_235517.jsonl`. Scores: `results/scores/test_20261013_235517_summary.csv`. One execution, medium thinking level, 50 test questions, 400 model runs, total logged cost **$8.31**.
 
-A procurement manager asks: which suppliers will deliver late, why, how much value is exposed, and what should be done about it? SAP's shipped Procurement Risk Analyzer Agent template only lists delayed purchase orders. This project adds prediction, explanation, reconciliation, approval, governance and reuse, built and documented in stages.
+| Approach | Model | Accuracy (of 50) | Total cost | Cost per question | Mean latency | Cached input tokens (total) | Superseded citations* |
+|---|---|---|---|---|---|---|---|
+| Long context | Gemini 3.8 Flash | **50 (100%)** | $0.71 | $0.014 | 6.6 s | 1,614,299 | 0 of 42 |
+| Long context | Gemini 4 Argon | **50 (100%)** | $4.56 | $0.091 | 9.2 s | 44,075 | 3 of 42 |
+| Agentic retrieval | Gemini 3.8 Flash | 48 (96%) | $0.23 | $0.005 | 20.1 s | 325 | 2 of 42 |
+| Agentic retrieval | Gemini 4 Argon | 49 (98%) | $1.34 | $0.027 | 23.9 s | 256,559 | 3 of 42 |
+| RAG with diagram captions | Gemini 3.8 Flash | 46 (92%) | $0.25 | $0.005 | 6.1 s | 2,531 | 1 of 42 |
+| RAG with diagram captions | Gemini 4 Argon | 46 (92%) | $0.43 | $0.009 | 12.7 s | 66,483 | 2 of 42 |
+| Classic RAG, text only | Gemini 3.8 Flash | 41 (82%) | $0.25 | $0.005 | 5.0 s | 0 | 1 of 42 |
+| Classic RAG, text only | Gemini 4 Argon | 41 (82%) | $0.56 | $0.011 | 6.0 s | 0 | 4 of 42 |
 
-## End to end architecture
+\* Answers to the 42 answerable questions whose citations include a document version that the answer key marks as superseded. The answer itself may still be correct.
 
-```
-                          S/4HANA (Private Cloud, OData v2)
-                 live OData |                          | replication (Cloud Connector)
-                            v                          v
- 1 CONVERSATIONAL                              2 ANALYTICAL
- Joule Risk Analyzer Agent (Gemini)            Datasphere UC4_PROC (producer)
-   getDelayedPurchaseOrders                      PO header, item, schedule lines
-   getPurchaseOrderSuppliers                     V_DELAYED_SCHEDULE_LINES
-   GetSupplierDetails (on demand)                V_SUPPLIER_FEATURES (13 derived features)
-   getSupplierRiskScore ----+                        | scripts/score_suppliers.py (batch)
-   escalateSupplierRisk     |                        v
-        |                   +-------------->  SAP AI Core: one XGBoost model (/v2/predict)
-        | HIGH + user                                 |
-        | confirmation                                v
-        v                                     SUPPLIER_RISK_DECISION_LOG (RUN_ID audit)
- 3 ACTION                                       |                     |
- SBPA SupplierRiskReview                        v                     v
- Hold New POs | Monitor | Override       V_SUPPLIER_RISK_LATEST   4 GOVERNED REUSE
- required comment                        AM_SUPPLIER_RISK_LATEST  V_SDR_PRODUCT -> T_SDR_PRODUCT
-                                                |                   | share
-                                                v                   v
-                                        SAC "UC4 Supplier Risk     FIN_LAB_FILES (Object Store)
-                                         Control Tower"            SUPPLIER_DELIVERY_RISK (Delta)
-                                                                    |
-                                                                    v
-                                                  BDC data product SUPPLIER_DELIVERY_RISK_DP v1.0.0
-                                                  catalog -> request -> approval -> install
-                                                                    |
-                                                                    v
-                                                  Datasphere UC4_CONSUMER
-                                                  V_SDR_CONSUMED -> AM_SDR_CONSUMED
-                                                                    |
-                                                                    v
-                                                  SAC "Supplier Delivery Risk (BDC Consumer)" + Just Ask
-```
+Unanswerable questions: every approach and both models answered `not_found` on all 8 (no hallucinated values).
 
-## Build journey
+**Token usage per question (means from API usage fields; `results/analysis/test_20261013_235517_results_table.md`):**
 
-The project was built in three releases. Each release closed limitations that the previous one documented honestly.
+| Approach | Model | Input tokens | Output tokens | Thinking tokens | Share of input cached | Median latency | Tool calls |
+|---|---|---|---|---|---|---|---|
+| Long context | Flash | 45,633 | 71 | 390 | 71% | 5.9 s | 0 |
+| Long context | Argon | 45,556 | 95 | 73 | 2% | 7.1 s | 0 |
+| Agentic retrieval | Flash | 2,889 | 205 | 456 | 0% | 18.9 s | 5.3 |
+| Agentic retrieval | Argon | 16,325 | 229 | 161 | 31% | 18.8 s | 5.4 |
+| RAG with captions | Flash | 4,782 | 73 | 290 | 1% | 5.1 s | 0 |
+| RAG with captions | Argon | 4,913 | 104 | 20 | 27% | 4.7 s | 0 |
+| Text RAG | Flash | 4,789 | 73 | 303 | 0% | 4.8 s | 0 |
+| Text RAG | Argon | 4,922 | 101 | 26 | 0% | 4.9 s | 0 |
 
-| Release | When | Scope | Closed |
-|---|---|---|---|
-| **R1 Bounded agent and one model** | Aug 17 to 27, 2026 | Template baseline on private S/4 (OData v4 to v2), 4 tool Joule agent, XGBoost trained and served on AI Core, Joule skill calling AI Core, Datasphere mirror and SAC scorecard, reconciliation of agent versus full population | Published: Medium article *"Your AI Agent Isn't Wrong. It's Bounded."* and LinkedIn post |
-| **R2 Derived features, audit and approval** | Oct 3 to 5, 2026 | Features derived from replicated PO data, batch scorer with data quality gate, decision log, new semantic model and SAC control tower, SBPA approval, Joule escalation skill | R1 limitations: hand set features, manual batch import, no approval workflow |
-| **R3 Governed data product** | Sep 16 and Oct 5, 2026 | Object Store landing, BDC custom data product, access request and approval, install into a consumer space, consumer semantic model, SAC and Just Ask | R1 deferred item: BDC deployment (Databricks not available in this environment) |
+Cost check: Argon long context, 45,556 input tokens at $2 per million plus about 170 output and thinking tokens at $10 per million gives about $0.093, against $0.091 logged (the difference is the few cached tokens). The cost formula is consistent with the usage fields.
 
-### R1: bounded agent and one model (published)
+## 2. Findings (measured, this experiment only)
 
-* **Joule baseline:** the SAP template targets S/4HANA Cloud Public Edition (OData v4); the private S/4 exposes v2, so the purchase order action was rebuilt on `A_PurchaseOrderScheduleLine`. Tools: `getDelayedPurchaseOrders` (delayed schedule lines, `$top=200`), `getPurchaseOrderSuppliers`, `GetSupplierDetails` (on demand enrichment), `getSupplierRiskScore`. LLM: Gemini 3.5 Flash via Generative AI Hub.
-* **AI Core model:** scenario `supplier-prediction-tutorial`, resource group `default`, model artifact `d04761ba` persisted in S3, Docker images `srini117us/supplier-prediction-{train,serve}:01`. Trained on 10,000 synthetic purchase order records with 13 features; accuracy 0.661, AUC 0.652; top feature historical_ontime_rate (17 percent importance). Predict route `<deployment URL>/v2/predict`.
-* **Joule to AI Core:** Build action plus Joule skill bound through destination `AICORE_INFERENCE` (Joule Studio environment variable).
-* **Analytical mirror:** `V_DELAYED_AGENT_MIRROR`, `V_SUPPLIER_RISK_SCORES`, `AM_SUPPLIER_RISK_SCORES`, SAC "UC4 Supplier Scorecard".
-* **Key insight, 42 of 2,140:** the agent reported 42 delayed POs across 11 suppliers; the same date filter on the full replicated population returned 2,140 POs, 34 suppliers and 10,732 schedule lines. The agent was not wrong; it was bounded by `$top=200`.
-* **Ranking shift:** by delay volume USSU-VSF06, VSF04, VSF01, VSF08; by predicted risk USSU-VSF06 (0.670), VSF08 (0.648), VSF04 (0.577), VSF01 (0.553). VSF08 moved from fourth to second.
+1. **At about 47K tokens, long context was the most accurate approach for both models (100%).** Gemini 3.8 Flash matched Gemini 4 Argon's accuracy at about one sixth of the cost ($0.71 vs $4.56).
+2. **Retrieval, not the model, limited RAG.** Argon and Flash produced identical accuracy in every question category under both RAG variants. The misses came from what the index did or did not return.
+3. **Diagrams need an explicit path into text RAG.** Text only RAG answered 0 of 8 diagram questions (correctly abstaining on 7, one incorrect answer). Adding frozen captions raised this to 5 of 8; long context, which sees the images directly, answered 8 of 8.
+4. **Agentic retrieval closed most of the gap to long context** (96% Flash, 98% Argon) at a fraction of long context cost, but was the slowest approach (about 20 to 24 s per question).
+5. **Argon cited superseded document versions more often than Flash** in all four approaches (3 vs 0, 3 vs 2, 2 vs 1, 4 vs 1 of 42). A superseded citation does not by itself mean a wrong answer; each case, with its answer, is listed in the error report. This affects audit quality.
+6. **Caching behaved very differently** (section 5): 71% of Flash's long context input was served from cache, 2% of Argon's.
+7. **At the medium thinking level, Flash used more thinking tokens than Argon** in every approach (for example 390 vs 73 per question in long context, 290 vs 20 in RAG with captions). Argon's higher cost came from its input price and missed caching, not from thinking.
+8. **As agents, the two models explored differently:** both made about 5.4 tool calls per question, but Argon took in about 16K input tokens per question against Flash's 2.9K, possibly because Argon read whole documents where Flash relied more on search snippets; this explanation is not yet verified against the tool call logs in the raw JSONL.
+9. **Mean latency hides outliers:** Argon RAG with captions averaged 12.7 s but its median was 4.7 s, so a few slow requests dominate the mean. Medians are reported alongside means.
 
-### R2: derived features, audit and approval
+## 3. The four approaches
 
-* **Redeploy and contract:** serving redeployed from the same configuration and artifact; an empty POST returned a 422 listing all 13 required fields. The Joule score skill was found sending only 5 of 13 fields and was fixed.
-* **Derived features:** `V_SUPPLIER_FEATURES` computes per supplier features from replicated header, item and schedule line data (lead times floored at 1 day, blank supplier excluded, 32 suppliers). This replaced the hand set features that made every supplier score identically in R1.
-* **Batch scoring:** `scripts/score_suppliers.py` reads features through a Datasphere database user, calls AI Core per supplier, and appends results with RUN_ID, model and deployment IDs to `UC4_PROC#SCORING.SUPPLIER_RISK_DECISION_LOG`. A data quality gate marks invalid rows SKIPPED_DQ. Latest run: 31 of 32 scored; HIGH 9, MEDIUM 10, LOW 12.
-* **Semantic and SAC:** `V_SUPPLIER_RISK_LATEST` and `AM_SUPPLIER_RISK_LATEST` (average late probability divides by scored suppliers only), SAC "UC4 Supplier Risk Control Tower".
-* **Approval:** SBPA `SupplierRiskReview` 1.0.1 with API trigger, approval form (Hold New POs, Monitor, Override), required comment, two day due date, published to the Library.
-* **Escalation:** Joule skill `escalateSupplierRisk` (Check Condition riskBand = HIGH, Run Process without waiting, StringToNumber for probability); agent 1.0.23. When live scoring was unavailable the agent used the last valid batch score, said so, asked for confirmation and started the review.
+All four use the same system prompt, the same answer schema (`status`, `answer`, `citations` as `DOC_ID@VERSION`) and the same questions. Code: `src/argon_lab/arms.py`.
 
-### R3: governed data product
+* **Long context (L):** every document, plus the four diagram PNGs as images, is sent with each question. The corpus comes first in a fixed order and the question last, so a cache could reuse the prefix. No retrieval step.
+* **Classic RAG, text only (R1):** documents are split into section aware chunks of about 800 tokens, embedded once with `gemini-embedding-2`, and the 8 most similar chunks are sent with the question. Diagrams are not indexed, so diagram answers are out of reach by design.
+* **RAG with diagram captions (R2):** the same as R1, plus a text caption of each diagram, generated once by Gemini 3.8 Flash from the PNG and frozen in `corpus/small/captions/` before the run. This is the fair visual comparison for text RAG; it inherits Flash's reading of the diagrams.
+* **Agentic retrieval (A):** the model gets only the question and three read only tools: `list_docs`, `search_docs` (the R2 index) and `read_doc`. It decides what to search and read, for at most 8 rounds. Diagrams are available to it through their captions.
 
-* **First attempt (Sep 16):** `PO_SILVER_SQL_UC4` to `T_PO_SILVER_UC4` to Delta table `PO_SILVER_UC4_DELTA`, custom data product "Purchase Order Silver UC4". Proved the DecimalFloat to Decimal cast needed by Spark. Listing stalled (KBA 3758882) and later completed.
-* **Supplier Delivery Risk (Oct 5):**
-  * `V_SDR_PRODUCT` curates one row per supplier from the latest run, delay metrics and features (`sql/V_SDR_PRODUCT.sql`), validated before build (`sql/validation_checks.sql`).
-  * `DF_SDR_PRODUCT` materializes it to `T_SDR_PRODUCT` (only tables can be shared into an Object Store space), shared to `FIN_LAB_FILES`.
-  * `TF_LAND_SDR` lands Delta table `SUPPLIER_DELIVERY_RISK` (Delete All Before Loading).
-  * Data product `SUPPLIER_DELIVERY_RISK_DP` v1.0.0: Formations profile, Delta Share, Company Data, Spend Management Procurement; Lifecycle Active, Release Active, Functional Current.
-  * Consumer space `UC4_CONSUMER` requested access; approved in BDC Cockpit, Governance, Access Management; agreement Current; product installed as a Delta Share view in an SAP managed space (no copy).
-  * Consumer model `V_SDR_CONSUMED` and `AM_SDR_CONSUMED`, SAC story "Supplier Delivery Risk (BDC Consumer)", and Just Ask.
-  * Producer and consumer reconcile exactly: 1,711 delayed lines, 532 delayed POs, 22,278,512.95 USD delayed value.
+## 4. Corpus and questions
 
-## Components
+* Synthetic company Northwind Logistics: 31 text documents (decision records, API specs, contracts, runbooks, postmortems, policies, service catalogs, and 6 deliberately irrelevant documents) plus 4 diagrams. About 47K text tokens.
+* Documents were generated from a structured fact base (`corpus/spec/corpus_spec.json`); answers come from the fact base, never from model output.
+* 50 test questions in five categories: single fact (12), cross document (12), conflicting versions (10), diagram (8), unanswerable (8). Plus 10 separate dev questions used only for the pilot.
+* `corpus/check_corpus.py` verifies that every answer key fact exists in its cited documents, and that diagram only facts and unanswerable facts appear in no text document (0 problems at freeze).
+* Freeze commits: corpus and questions **b9b8bbb**, line endings **fb2b5da**, runner and frozen captions **e10ac9c**, results **07e6f58**.
 
-| Layer | Artifact | Release |
-|---|---|---|
-| Source | S/4HANA purchase order and business partner OData v2 | R1 |
-| Agent | Joule project ProcurementRisk_Baseline_SAP 1.0.23, Gemini via Generative AI Hub | R1, R2 |
-| Agent tools | getDelayedPurchaseOrders, getPurchaseOrderSuppliers, GetSupplierDetails, getSupplierRiskScore, escalateSupplierRisk | R1, R2 |
-| ML | AI Core XGBoost, scenario supplier-prediction-tutorial, train and serve images | R1 |
-| Replication | C_PURCHASEORDERDEX, C_PURCHASEORDERITEMDEX, C_PURORDSCHEDULELINEDEX | R1 |
-| Delay logic | V_DELAYED_AGENT_MIRROR, V_DELAYED_SCHEDULE_LINES | R1 |
-| Features | V_SUPPLIER_FEATURES (13 derived features) | R2 |
-| Batch and audit | scripts/score_suppliers.py, SUPPLIER_RISK_DECISION_LOG | R2 |
-| Semantic | AM_SUPPLIER_RISK_SCORES (R1), AM_SUPPLIER_RISK_LATEST (R2) | R1, R2 |
-| Analytics | SAC "UC4 Supplier Scorecard" (R1), "UC4 Supplier Risk Control Tower" (R2) | R1, R2 |
-| Approval | SBPA SupplierRiskReview 1.0.1 | R2 |
-| Data product | V_SDR_PRODUCT, DF_SDR_PRODUCT, TF_LAND_SDR, SUPPLIER_DELIVERY_RISK_DP v1.0.0 | R3 |
-| Governance | BDC Cockpit Access Management: request, approval, agreement | R3 |
-| Consumer | UC4_CONSUMER: V_SDR_CONSUMED, AM_SDR_CONSUMED, SAC story, Just Ask | R3 |
+## 5. Caching: what we observed
 
-## Data product schema (v1)
+These observations cover our requests on 2026-10-13 and 2026-10-14 only. Google documents implicit caching as best effort with no guarantee, and the behavior may differ at other times or volumes.
 
-One row per supplier, latest scoring run only.
+* **Probes, Argon, identical ~11.4K token prefix, 21 requests:** resending the full prefix each time: 0 of 11 substantial hits. A conversation chain held on the server (`previous_interaction_id`): 2 of 3 hits. Branching every question from one corpus loading interaction: 1 of 7 hits.
+* **Main benchmark, long context (about 52K token prefix, 50 requests each):** Flash reported 1,614,299 cached tokens and its per question cost fell from about $0.035 to about $0.006 on most questions. Argon reported 44,075 cached tokens; its cost stayed at about $0.092 per question except one question ($0.010).
+* Argon's agentic runs reported 256,559 cached tokens, which fits the probe finding that Argon cached within server held conversation chains.
+* No caching savings are claimed beyond what `total_cached_tokens` reports.
 
-| Column | Type | Source |
-|---|---|---|
-| Supplier (key) | String(10) | decision log |
-| RiskBand, Confidence, TopRiskFactor, ScoringStatus | String | decision log |
-| LateProbability, OntimeProbability | Decimal(6,4) | decision log |
-| DelayedLineCount, DelayedPOCount | Integer | V_DELAYED_SCHEDULE_LINES |
-| DelayedPOValueUSD | Decimal(23,2) | item NetAmount, deduplicated by PO item, USD only |
-| HistoricalOntimeRate, AvgLeadTimeDays | Decimal | V_SUPPLIER_FEATURES |
-| ModelId, RunId, ScoredAt | String | lineage |
+## 6. Error analysis by category
 
-## Results in pictures
+| Category | Long context | Agentic | RAG with captions | Text RAG |
+|---|---|---|---|---|
+| Single fact (12) | 12 / 12 both | 12 / 12 both | 12 / 12 both | 12 / 12 both |
+| Cross document (12) | 12 / 12 both | 12 / 12 both | 11 / 12 both | 11 / 12 both |
+| Conflicting versions (10) | 10 / 10 both | 9 / 10 both | 10 / 10 both | 10 / 10 both |
+| Diagram (8) | 8 / 8 both | Argon 8, Flash 7 | 5 / 8 both | 0 / 8 both |
+| Unanswerable (8) | 8 / 8 both | 8 / 8 both | 8 / 8 both | 8 / 8 both |
 
-![Joule fallback and confirmation](docs/images/joule_fallback_confirmation.png)
-![Joule escalation skill](docs/images/joule_escalation_skill.png)
-![SBPA task in My Inbox](docs/images/sbpa_task_inbox.png)
-![Instance context with comment](docs/images/sbpa_context_comment.png)
-![SBPA instance completed](docs/images/sbpa_instance_completed.png)
-![BDC catalog product page](docs/images/bdc/01_catalog_product_page.png)
-![Access agreement with approval trail](docs/images/bdc/02_access_agreement_activity.png)
-![Installed product in consumer space](docs/images/bdc/03_consumer_installed_view.png)
-![Consumer analytic model reconciliation](docs/images/bdc/04_consumer_am_reconciliation.png)
-![SAC story on the consumer model](docs/images/bdc/05_sac_bdc_consumer_story.png)
-![Just Ask on HIGH risk suppliers](docs/images/bdc/06_just_ask_high_risk.png)
+What the run logs show directly:
+* **Diagrams, RAG with captions:** both models answered `not_found` on D01 (sync or async call to PayNimbus) and D02 (Kafka topic between shipping and carrier services), whose answers are in the DIAG-01 caption. This points to the caption chunk not ranking in the top 8 for those questions. A third diagram answer was incorrect.
+* **Diagrams, text RAG:** both models abstained on 7 of 8 and gave an incorrect answer to D08, which no text document supports.
+* **Diagrams, agentic Flash:** answered `not_found` on D01.
+* **Cross document (both RAG variants) and conflicting versions (agentic):** one question each, identical across models. The specific question IDs, the models' answers and their citations are listed by `analyze_results.py` in `results/analysis/test_20261013_235517_error_report.md`.
 
-## What BDC added
+## 7. The retrieval bug in the pilot (invalid results, kept on purpose)
 
-The solution already worked inside Datasphere. BDC turned the curated result into a versioned, owned, discoverable product that a separate consumer requested, was approved for and installed without any access to the producer pipeline. The consumer receives a Delta Share reference rather than a copy, and the same product can later serve SAP Databricks or Snowflake members of a formation. Producer and consumer are spaces in one tenant, so this demonstrates governance, catalog and installation rather than cross system sharing.
+* **What happened:** in the first pilot (`results/runs/dev_20261013_224947.jsonl`), the index held **2 vectors for 86 chunks** (verified: array shape `(2, 3072)`). `gemini-embedding-2` returned one vector per batch when given a plain list of strings, so retrieval returned almost nothing. RAG with captions answered `not_found` on nearly every dev question, and the agent's search tool was affected the same way.
+* **Correction:** `retrieval.py` now sends each text as its own content item, verifies one vector per chunk, falls back to one call per text, and rebuilds any cache with the wrong count. Committed separately as "Fix: one embedding per chunk".
+* **Why only two arms were rerun:** only RAG and the agent use the index. Long context never touches it, so its pilot results were already valid. The rerun (`results/runs/dev_20261013_234055.jsonl`, $0.40) gave 10 of 10 for every arm and model.
+* **Validity:** in `dev_20261013_224947.jsonl`, the R2 and A rows are **invalid**; the L rows are valid. The main benchmark ran entirely on the corrected code. Both pilot files are kept unmodified.
 
-## Findings
+## 8. Limitations
 
-* **Bounded answers (R1):** a conversational answer can be correct and still operationally incomplete; the analytical mirror is how to see the bound.
-* **Features decide usefulness (R1 to R2):** with hand set features every supplier scored identically; derived features produced differentiated scores from the same model and endpoint.
-* **Exposure gap (R3):** the five suppliers with the largest delayed value are not HIGH risk, while all HIGH suppliers together hold about 232 thousand USD. The HIGH only approval gate misses the largest exposure.
-* **Risk band versus volume (R3):** LOW suppliers carry 1,056 delayed lines, MEDIUM 594, HIGH 60. The model predicts lateness probability, not backlog volume.
-* **Explanation quality (R3):** 531 of 532 delayed POs report the same top factor; top factors are global importances, so per prediction SHAP values are needed.
+1. One synthetic corpus written by Claude subagents from a fact base; models may behave differently on human written documentation.
+2. 50 test questions and a **single** main execution per configuration: results are descriptive; small differences (for example 96% vs 98%) are within what one more run could change.
+3. About 47K tokens is well within both models' context windows. **This is not a long context stress test.** Long context cost and accuracy at 150K or 500K tokens were not measured.
+4. Only the medium thinking level was benchmarked.
+5. Retrieval settings (chunk size about 800 tokens, top 8, `gemini-embedding-2`) were fixed in advance and not tuned; other settings could change RAG results.
+6. R2 captions come from Gemini 3.8 Flash, so R2 inherits Flash's diagram reading for both models.
+7. Caching results reflect two days of requests and are not a statement about Google's caching in general.
+8. The answer key is deterministic regex matching; any answer phrased in a way the patterns miss would count as incorrect. Unmatched cases should be reviewed by hand in the error report.
 
-![Top five suppliers by delayed value](docs/images/bdc/07_just_ask_top5_exposure.png)
+## 9. Reproducibility
 
-> Note on delay counts: the R1 reconciliation used the agent's date filter only (10,732 lines). R2 and R3 use the stricter open quantity rule (delivery date passed and received quantity below ordered), which gives 1,715 delayed lines.
+Requirements: Python 3.11+, a Gemini API key on a billed project (Argon has no free tier).
 
-## Design decisions
-
-* **One model, many consumers:** the same AI Core endpoint serves the agent on demand and the batch path; no duplicated models, no drift.
-* **Batch plus on demand scoring:** batch feeds analytics, audit and the data product; on demand serves the agent. The decision log keeps every run (RUN_ID).
-* **Rule enforced in the skill, not only the prompt:** the HIGH check is a Check Condition step; the agent instruction adds user confirmation.
-* **Fire and forget approval:** the skill does not wait for the approval outcome, which can take days.
-* **Honest data:** no invented feature values or product attributes; proxies (on time rate from past due lines) are documented.
-* **Snapshot product, separated domains:** the data product carries the latest run only; producer source views are not exposed for consumption, only the consumer model is.
-
-## Known limitations
-
-* The model is trained on synthetic data (accuracy 0.661, AUC 0.652); this shows a pipeline, not a production forecast.
-* Three features are constants (vendor_country, vendor_category, delivery_day_of_week) because supplier master data is not replicated.
-* The approval gate is risk band HIGH, not an exposure threshold, and the approval outcome is not persisted back to the decision log.
-* The template Business Partner action expects a host only destination URL, while the purchase order actions expect the service URL; both share one destination variable.
-* AI Core deployments are disposable; live scoring in Joule needs a redeploy and a destination URL update.
-* The data product excludes 10 non USD delayed items and has no supplier names (planned for v1.1).
-* Generative AI features in SBPA and classic Joule Studio are deprecated from January 2027.
-
-## Lessons
-
-**AI Core**
-* AI Core is a three contracts orchestrator (registry secret, object store secret, Git and YAML); every failure is a named thing mismatch.
-* A workflow template without input and output artifact bindings trains a model into the void.
-* The serving configuration is deployed, not the model; treat deployments as disposable and artifacts as durable.
-* An empty POST body returns a 422 listing every required field; Pydantic coerces "14" to an integer but rejects "0.5".
-* Deployments bill while RUNNING, idle or not; set a TTL and end each session with none running.
-
-**Joule and SAP Build**
-* Templates may assume Public Cloud APIs; check the OData version of the target system first.
-* Build from Scratch actions need output lists named after HTTP status codes (for example 200).
-* Joule Studio binds destinations through project environment variables mapped at deploy time.
-* OData v2 Edm.Time fields arrive as ISO 8601 durations; set API Format to None.
-* Joule routes by agent description; a new tool is invisible until the description names it.
-* Check Connection on BTP destinations proves reachability only, not credentials.
-* Cross project process reuse: publish to the Library, then add a project dependency; changing a form invalidates every process that uses it until saved again.
-
-**Datasphere and SAC**
-* "Exposed" is not "consumable": SAC live connections need a view or analytic model, not a local table.
-* CSV imports type numbers as text; CAST before a column can become a measure.
-* Live Datasphere models are added in SAC through Existing Models, not the Data Source tile.
-* Averages need restricted counts; SUM semantics distort KPIs.
-* SQL views reject TOP (use LIMIT); pass through columns inherit source business names and keys; TO_VARCHAR without a length yields String(5000).
-* Object Store targets run on Spark: cast HANA DecimalFloat to Decimal before landing.
-
-**BDC**
-* A Delta Share data product needs a Delta table in an Object Store space and a Data Provider Profile with Formations visibility; only tables can be shared into that space.
-* Agreement and installation are separate steps; approvals live in BDC Cockpit under Governance, Access Management.
-* A product stuck on Listing can still complete later; check Publishing Management before retrying.
-
-**General**
-* In PowerShell, single quote credentials containing `$`, `|` or `!`.
-* Run a secret scan before every push; one pre commit scan caught a live AI Core client secret.
-
-## Repository contents
-
-* `scripts/score_suppliers.py`: batch scorer (Datasphere features to AI Core to decision log).
-* `sql/V_SDR_PRODUCT.sql`: curated data product source view.
-* `sql/validation_checks.sql`: column, currency, reconciliation and grain checks.
-* `docs/images/`: architecture overview and curated screenshots.
-* `.env.example`: variable names only; `.env` is gitignored.
-* AI Core training and serving code lives in `supplier-prediction-tutorial/` at the repository root (AI Core Git sync path).
-
-## Run the batch scorer
-
-```bash
-pip install requests hdbcli python-dotenv
-cp .env.example .env   # fill values
-python scripts/score_suppliers.py
+```powershell
+git clone <this repository>; cd argon-knowledge-lab
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+$env:GEMINI_API_KEY = "..."
+.\.venv\Scripts\python.exe corpus\check_corpus.py small          # free: verifies the frozen corpus
+.\.venv\Scripts\python.exe run.py --split test --arms R1 R2 L A --models gemini-4-argon gemini-3.8-flash --levels medium --budget 15 --dry-run
+.\.venv\Scripts\python.exe run.py --split test --arms R1 R2 L A --models gemini-4-argon gemini-3.8-flash --levels medium --budget 15
+.\.venv\Scripts\python.exe score.py results\runs\<new file>.jsonl              # free
+.\.venv\Scripts\python.exe analyze_results.py results\runs\<new file>.jsonl    # free
 ```
 
-## Roadmap
+`run.py` always prints an estimate and asks for confirmation; `--budget` is a hard stop. Captions are already frozen, so `make_captions.py` is not needed for a rerun. Prices are in `src/argon_lab/pricing.py` (introductory Argon pricing ends 2026-11-30; rates double after). Model behavior and caching may differ on rerun.
 
-* Exposure based approval gate and persisted approval outcome.
-* Supplier master replication for names and the three constant features, then retrain on real history.
-* Per prediction SHAP explanations.
-* Data product v1.1 with SupplierName and a refresh task chain; a cross platform consumer (SAP Databricks) on a formation that includes it.
+## 10. Cost: local log vs billing
 
-## Published
+| Item | Logged cost |
+|---|---|
+| Probes (access, function calling, File Search, three caching probes) | about $0.48 |
+| Diagram captions (4 Flash calls) | not logged; small |
+| Pilot (including invalid arms) and rerun | $1.80 |
+| Main benchmark | $8.31 |
+| Embeddings (about 110K tokens) | not priced; Google's price for `gemini-embedding-2` was not available to us |
+| **Total logged** | **about $10.60** |
 
-* Medium: *Your AI Agent Isn't Wrong. It's Bounded.* (Aug 27, 2026)
-* LinkedIn post on the same build.
+The project owner reported seeing about $25 in billing. **This discrepancy is unresolved.** Possible causes not yet checked: a prepaid credit top-up shown as the charge, other usage on the same billing account, or token types our cost formula undercounts (image tokens, tool use tokens, or thinking tokens if `total_output_tokens` already includes them). Until reconciled against the AI Studio usage page per model, the costs in this README should be read as **estimates from API usage fields**, valid for comparing approaches but not as invoice totals.
 
-## References
+## 11. Repository map
 
-* SAP Community: Custom Agentic Chatbot with SAP AI Core and Joule Studio, Part 3
-* SAP samples teched2025 AI163, exercise 4 (destination environment variable pattern)
-* SAP RIG: Building a Procurement Agent for S/4HANA Cloud Private Edition (baseline)
-
-## Tech
-
-SAP S/4HANA, SAP BTP, SAP AI Core, SAP Datasphere, SAP Business Data Cloud, SAP Analytics Cloud, SAP Build (Joule Studio, Process Automation), Python, Docker, XGBoost.
+| Path | Content |
+|---|---|
+| `corpus/spec/` | Fact base, frozen questions and answer key, diagram sources (never sent to models) |
+| `corpus/small/` | Documents, diagrams, frozen captions, SHA256 manifest |
+| `src/argon_lab/` | Corpus loader, retrieval, the four arms, scoring, pricing |
+| `run.py`, `score.py`, `analyze_results.py` | Runner with budget cap; deterministic scorer; offline analysis |
+| `probes/` | API verification and caching probes |
+| `results/runs/`, `results/scores/` | Raw JSONL and scored CSV files, unmodified |
+| `docs/plan.md`, `docs/medium_outline.md` | Preregistered plan; article outline |
