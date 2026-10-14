@@ -1,0 +1,4 @@
+digraph G { rankdir=TB; label="DIAG-02 v1  Order placement sequence"; labelloc=t; fontsize=20; node [shape=box, style=rounded, fontname=Helvetica];
+ client[label="Client"]; o[label="order-service"]; i[label="inventory-service"]; p[label="pricing-service"]; pay[label="payment-service"]; t[label="order-events (Kafka)", shape=cylinder];
+ client->o[label="POST /orders"]; o->i[label="1. reserve stock"]; o->p[label="2. quote"]; o->pay[label="3. authorize"]; o->t[label="4. publish OrderPlaced"];
+}

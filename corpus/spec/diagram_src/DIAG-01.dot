@@ -1,0 +1,5 @@
+digraph G { rankdir=LR; label="DIAG-01 v1  Orion system context"; labelloc=t; fontsize=20; node [shape=box, style=rounded, fontname=Helvetica];
+ subgraph cluster_o { label="Orion"; order[label="order-service"]; payment[label="payment-service"]; shipping[label="shipping-service"]; cg[label="carrier-gateway"]; customer[label="customer-service"]; billing[label="billing-service"]; kafka[label="Kafka topic\nshipment-requests", shape=cylinder]; egress[label="egress-proxy", shape=hexagon]; }
+ paynimbus[label="PayNimbus", shape=component]; swift[label="SwiftShip", shape=component]; relatia[label="Relatia", shape=component]; ledger[label="LedgerOne", shape=component];
+ order->payment[label="authorize"]; payment->paynimbus[label="sync REST", penwidth=2]; shipping->kafka[label="publish", style=dashed]; kafka->cg[label="consume", style=dashed]; cg->egress; egress->swift[label="HTTPS"]; customer->relatia[label="nightly sync", style=dashed]; billing->ledger[label="export", style=dashed];
+}

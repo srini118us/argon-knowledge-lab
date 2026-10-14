@@ -1,0 +1,4 @@
+digraph G { rankdir=LR; label="DIAG-04 v1  Reporting data flow"; labelloc=t; fontsize=20; node [shape=box, style=rounded, fontname=Helvetica];
+ t[label="order-events (Kafka)", shape=cylinder]; r[label="reporting-service"]; dw[label="Polaris DW", shape=cylinder]; bi[label="dashboards"];
+ t->r[label="consume"]; r->dw[label="load (micro batches)"]; dw->bi[label="query"];
+}

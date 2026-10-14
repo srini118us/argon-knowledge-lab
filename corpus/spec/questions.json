@@ -1,0 +1,853 @@
+{
+  "format": "Each answered question passes only if every key_facts regex matches the answer (case insensitive). required_citations must all be cited; citing anything in superseded_citations is scored as a superseded citation error. not_found questions pass only with status not_found.",
+  "questions": [
+    {
+      "id": "S01",
+      "split": "test",
+      "category": "single_fact",
+      "question": "Which team owns the carrier-gateway service?",
+      "status": "answered",
+      "key_facts": [
+        "Logistics"
+      ],
+      "required_citations": [
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S02",
+      "split": "test",
+      "category": "single_fact",
+      "question": "At what consumer lag does the Kafka alert fire?",
+      "status": "answered",
+      "key_facts": [
+        "50[,.]?000"
+      ],
+      "required_citations": [
+        "RB-KAFKA-01@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S03",
+      "split": "test",
+      "category": "single_fact",
+      "question": "How long does Order API v2 retain idempotency keys?",
+      "status": "answered",
+      "key_facts": [
+        "24\\s*(hours|h\\b)"
+      ],
+      "required_citations": [
+        "SPEC-ORDER-API@v2"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S04",
+      "split": "test",
+      "category": "single_fact",
+      "question": "What availability SLA does PayNimbus commit to?",
+      "status": "answered",
+      "key_facts": [
+        "99\\.95"
+      ],
+      "required_citations": [
+        "CT-PAYN-2024@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S05",
+      "split": "test",
+      "category": "single_fact",
+      "question": "Where are platform secrets stored?",
+      "status": "answered",
+      "key_facts": [
+        "Vault"
+      ],
+      "required_citations": [
+        "POL-SEC-01@v2"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S06",
+      "split": "test",
+      "category": "single_fact",
+      "question": "How long is customer PII retained after an account is closed?",
+      "status": "answered",
+      "key_facts": [
+        "3\\s*years|three years"
+      ],
+      "required_citations": [
+        "POL-RET-03@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S07",
+      "split": "test",
+      "category": "single_fact",
+      "question": "How many partitions does the order-events topic have?",
+      "status": "answered",
+      "key_facts": [
+        "\\b24\\b"
+      ],
+      "required_citations": [
+        "ADR-019@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S08",
+      "split": "test",
+      "category": "single_fact",
+      "question": "After how many consecutive failures does the carrier-gateway circuit breaker open?",
+      "status": "answered",
+      "key_facts": [
+        "\\b5\\b|five"
+      ],
+      "required_citations": [
+        "ADR-024@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S09",
+      "split": "test",
+      "category": "single_fact",
+      "question": "What is the PayNimbus settlement period?",
+      "status": "answered",
+      "key_facts": [
+        "T\\s*\\+\\s*2"
+      ],
+      "required_citations": [
+        "CT-PAYN-2024@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S10",
+      "split": "test",
+      "category": "single_fact",
+      "question": "What is the internal p95 latency target for label generation in the Shipping API?",
+      "status": "answered",
+      "key_facts": [
+        "2\\s*(seconds|s\\b)|two seconds"
+      ],
+      "required_citations": [
+        "SPEC-SHIP-API@v2"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S11",
+      "split": "test",
+      "category": "single_fact",
+      "question": "How often is the payment-retry queue processed?",
+      "status": "answered",
+      "key_facts": [
+        "hourly|every hour|once an hour"
+      ],
+      "required_citations": [
+        "RB-PAYMENT-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "S12",
+      "split": "test",
+      "category": "single_fact",
+      "question": "What is the per client rate limit of Order API v2?",
+      "status": "answered",
+      "key_facts": [
+        "200"
+      ],
+      "required_citations": [
+        "SPEC-ORDER-API@v2"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X01",
+      "split": "test",
+      "category": "cross_document",
+      "question": "What is the highest request rate carrier-gateway is allowed to send to SwiftShip today, and why is it not the contracted limit?",
+      "status": "answered",
+      "key_facts": [
+        "\\b100\\b",
+        "\\b120\\b"
+      ],
+      "required_citations": [
+        "ADR-024@v1",
+        "CT-SWIFT-2024@A1"
+      ],
+      "superseded_citations": [
+        "CT-SWIFT-2024@v1"
+      ]
+    },
+    {
+      "id": "X02",
+      "split": "test",
+      "category": "cross_document",
+      "question": "What RPO applies to the service that owns order cancellation?",
+      "status": "answered",
+      "key_facts": [
+        "15\\s*min"
+      ],
+      "required_citations": [
+        "CAT-SERVICES@2025",
+        "POL-DR-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X03",
+      "split": "test",
+      "category": "cross_document",
+      "question": "Which team owns the service whose outage is described in PM-2025-014?",
+      "status": "answered",
+      "key_facts": [
+        "Logistics"
+      ],
+      "required_citations": [
+        "PM-2025-014@v1",
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X04",
+      "split": "test",
+      "category": "cross_document",
+      "question": "Which ADR followed the August 2025 carrier outage, and what outbound cap did it set?",
+      "status": "answered",
+      "key_facts": [
+        "ADR-024",
+        "\\b100\\b"
+      ],
+      "required_citations": [
+        "PM-2025-014@v1",
+        "ADR-024@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X05",
+      "split": "test",
+      "category": "cross_document",
+      "question": "Why was the Order API v1 sunset accelerated, and what is the sunset date?",
+      "status": "answered",
+      "key_facts": [
+        "duplicate",
+        "2025-12-31|December 31,? 2025|31 December 2025"
+      ],
+      "required_citations": [
+        "PM-2025-021@v1",
+        "SPEC-ORDER-API@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X06",
+      "split": "test",
+      "category": "cross_document",
+      "question": "How long are order events kept in Kafka, compared with how long order records are kept overall?",
+      "status": "answered",
+      "key_facts": [
+        "14\\s*days",
+        "7\\s*years|seven years"
+      ],
+      "required_citations": [
+        "ADR-021@v1",
+        "POL-RET-03@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X07",
+      "split": "test",
+      "category": "cross_document",
+      "question": "How must payment-service authenticate when it calls inventory-service?",
+      "status": "answered",
+      "key_facts": [
+        "OAuth ?2|client credentials",
+        "mTLS|mutual TLS"
+      ],
+      "required_citations": [
+        "ADR-011@v1",
+        "POL-SEC-01@v2"
+      ],
+      "superseded_citations": [
+        "POL-SEC-01@v1"
+      ]
+    },
+    {
+      "id": "X08",
+      "split": "test",
+      "category": "cross_document",
+      "question": "What SwiftShip rate limit was in force during PM-2025-014, and what is it under the current contract?",
+      "status": "answered",
+      "key_facts": [
+        "\\b50\\b",
+        "\\b120\\b"
+      ],
+      "required_citations": [
+        "PM-2025-014@v1",
+        "CT-SWIFT-2024@A1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X09",
+      "split": "test",
+      "category": "cross_document",
+      "question": "What RPO applies to reporting-service, and which team owns it?",
+      "status": "answered",
+      "key_facts": [
+        "24\\s*(hours|h\\b)",
+        "\\bData\\b"
+      ],
+      "required_citations": [
+        "POL-DR-02@v1",
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X10",
+      "split": "test",
+      "category": "cross_document",
+      "question": "What timeout does payment-service use for PayNimbus calls, and how does it relate to the PayNimbus contract?",
+      "status": "answered",
+      "key_facts": [
+        "\\b8\\s*(seconds|s\\b)",
+        "p99"
+      ],
+      "required_citations": [
+        "SPEC-PAY-INT@v2",
+        "CT-PAYN-2024@v1"
+      ],
+      "superseded_citations": [
+        "SPEC-PAY-INT@v1"
+      ]
+    },
+    {
+      "id": "X11",
+      "split": "test",
+      "category": "cross_document",
+      "question": "Which ADR introduced idempotency for order creation, and which incident showed why it mattered for clients that had not migrated?",
+      "status": "answered",
+      "key_facts": [
+        "ADR-007",
+        "PM-2025-021"
+      ],
+      "required_citations": [
+        "ADR-007@v1",
+        "PM-2025-021@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "X12",
+      "split": "test",
+      "category": "cross_document",
+      "question": "Which team owns the service that processes the payment-retry queue, and how often does it run?",
+      "status": "answered",
+      "key_facts": [
+        "Commerce",
+        "hourly|every hour|once an hour"
+      ],
+      "required_citations": [
+        "RB-PAYMENT-02@v1",
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "C01",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "Which message broker does Orion use as its event bus today?",
+      "status": "answered",
+      "key_facts": [
+        "Kafka"
+      ],
+      "required_citations": [
+        "ADR-019@v1"
+      ],
+      "superseded_citations": [
+        "ADR-003@v1"
+      ]
+    },
+    {
+      "id": "C02",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "What is the retention period of the order-events topic?",
+      "status": "answered",
+      "key_facts": [
+        "14\\s*days"
+      ],
+      "required_citations": [
+        "ADR-021@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "C03",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "What rate limit does the SwiftShip contract allow?",
+      "status": "answered",
+      "key_facts": [
+        "\\b120\\b"
+      ],
+      "required_citations": [
+        "CT-SWIFT-2024@A1"
+      ],
+      "superseded_citations": [
+        "CT-SWIFT-2024@v1"
+      ]
+    },
+    {
+      "id": "C04",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "Can SwiftShip support be reached at 23:00 Eastern Time?",
+      "status": "answered",
+      "key_facts": [
+        "yes|24\\s*x\\s*7|24/7"
+      ],
+      "required_citations": [
+        "CT-SWIFT-2024@A1"
+      ],
+      "superseded_citations": [
+        "CT-SWIFT-2024@v1"
+      ]
+    },
+    {
+      "id": "C05",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "What timeout should payment-service use for PayNimbus calls?",
+      "status": "answered",
+      "key_facts": [
+        "\\b8\\s*(seconds|s\\b)"
+      ],
+      "required_citations": [
+        "SPEC-PAY-INT@v2"
+      ],
+      "superseded_citations": [
+        "SPEC-PAY-INT@v1"
+      ]
+    },
+    {
+      "id": "C06",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "Which Order API version should a new integration use?",
+      "status": "answered",
+      "key_facts": [
+        "v2|version 2"
+      ],
+      "required_citations": [
+        "SPEC-ORDER-API@v2"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "C07",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "What retention applies to Kafka topics other than order-events?",
+      "status": "answered",
+      "key_facts": [
+        "7\\s*days|seven days"
+      ],
+      "required_citations": [
+        "POL-DR-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "C08",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "Which team owns returns-service?",
+      "status": "answered",
+      "key_facts": [
+        "Commerce"
+      ],
+      "required_citations": [
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": [
+        "CAT-SERVICES@2024"
+      ]
+    },
+    {
+      "id": "C09",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "How often must secrets and keys be rotated?",
+      "status": "answered",
+      "key_facts": [
+        "90\\s*days|ninety days"
+      ],
+      "required_citations": [
+        "POL-SEC-01@v2"
+      ],
+      "superseded_citations": [
+        "POL-SEC-01@v1"
+      ]
+    },
+    {
+      "id": "C10",
+      "split": "test",
+      "category": "conflicting_versions",
+      "question": "What is the maximum number of retries per carrier request?",
+      "status": "answered",
+      "key_facts": [
+        "\\b3\\b|three"
+      ],
+      "required_citations": [
+        "RB-CARRIER-01@v2"
+      ],
+      "superseded_citations": [
+        "RB-CARRIER-01@v1"
+      ]
+    },
+    {
+      "id": "D01",
+      "split": "test",
+      "category": "diagram",
+      "question": "Does payment-service call PayNimbus synchronously or asynchronously?",
+      "status": "answered",
+      "key_facts": [
+        "\\bsync|synchronous"
+      ],
+      "required_citations": [
+        "DIAG-01@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D02",
+      "split": "test",
+      "category": "diagram",
+      "question": "Through which Kafka topic does shipping-service hand requests to carrier-gateway?",
+      "status": "answered",
+      "key_facts": [
+        "shipment-requests"
+      ],
+      "required_citations": [
+        "DIAG-01@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D03",
+      "split": "test",
+      "category": "diagram",
+      "question": "When an order is placed, which service is called immediately before payment-service?",
+      "status": "answered",
+      "key_facts": [
+        "pricing-service|pricing service"
+      ],
+      "required_citations": [
+        "DIAG-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D04",
+      "split": "test",
+      "category": "diagram",
+      "question": "In which region does reporting-service run?",
+      "status": "answered",
+      "key_facts": [
+        "us-east"
+      ],
+      "required_citations": [
+        "DIAG-03@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D05",
+      "split": "test",
+      "category": "diagram",
+      "question": "Which region is the disaster recovery region for Tier 1 services?",
+      "status": "answered",
+      "key_facts": [
+        "us-west"
+      ],
+      "required_citations": [
+        "DIAG-03@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D06",
+      "split": "test",
+      "category": "diagram",
+      "question": "Into which data warehouse does reporting-service load order events?",
+      "status": "answered",
+      "key_facts": [
+        "Polaris"
+      ],
+      "required_citations": [
+        "DIAG-04@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D07",
+      "split": "test",
+      "category": "diagram",
+      "question": "Which service does order-service call first when an order is placed?",
+      "status": "answered",
+      "key_facts": [
+        "inventory-service|inventory service"
+      ],
+      "required_citations": [
+        "DIAG-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "D08",
+      "split": "test",
+      "category": "diagram",
+      "question": "Which component sits between carrier-gateway and SwiftShip?",
+      "status": "answered",
+      "key_facts": [
+        "egress-proxy|egress proxy"
+      ],
+      "required_citations": [
+        "DIAG-01@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "U01",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What RPO applies to customer-service?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U02",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What termination notice period does the PayNimbus contract require?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U03",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "How many brokers are in the Kafka cluster?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U04",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What availability SLA applies to the LedgerOne integration?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U05",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What rate limit does Relatia impose on customer-service?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U06",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What was the budget for the Kafka migration?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U07",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What was the label generation latency target in Shipping API v1?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "U08",
+      "split": "test",
+      "category": "unanswerable",
+      "question": "What is the maximum depth of the payment-retry queue?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "V01",
+      "split": "dev",
+      "category": "single_fact",
+      "question": "When does benefits open enrollment close?",
+      "status": "answered",
+      "key_facts": [
+        "2025-11-15|November 15"
+      ],
+      "required_citations": [
+        "HR-2025-BENEFITS@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V02",
+      "split": "dev",
+      "category": "single_fact",
+      "question": "What is the RTO for Tier 1 services?",
+      "status": "answered",
+      "key_facts": [
+        "4\\s*(hours|h\\b)|four hours"
+      ],
+      "required_citations": [
+        "POL-DR-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V03",
+      "split": "dev",
+      "category": "single_fact",
+      "question": "How long are application logs retained?",
+      "status": "answered",
+      "key_facts": [
+        "90\\s*days"
+      ],
+      "required_citations": [
+        "POL-RET-03@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V04",
+      "split": "dev",
+      "category": "single_fact",
+      "question": "What is the PayNimbus fee dispute window?",
+      "status": "answered",
+      "key_facts": [
+        "60\\s*days"
+      ],
+      "required_citations": [
+        "CT-PAYN-2024@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V05",
+      "split": "dev",
+      "category": "conflicting_versions",
+      "question": "What is the status of RFC-008?",
+      "status": "answered",
+      "key_facts": [
+        "withdrawn"
+      ],
+      "required_citations": [
+        "RFC-008@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V06",
+      "split": "dev",
+      "category": "cross_document",
+      "question": "Which team owns the platform that raises the consumer lag alert, and who owns identity-service?",
+      "status": "answered",
+      "key_facts": [
+        "Platform"
+      ],
+      "required_citations": [
+        "RB-KAFKA-01@v1",
+        "CAT-SERVICES@2025"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V07",
+      "split": "dev",
+      "category": "single_fact",
+      "question": "Where does the warehouse robotics pilot run?",
+      "status": "answered",
+      "key_facts": [
+        "Columbus"
+      ],
+      "required_citations": [
+        "PROJ-ROBOTICS@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V08",
+      "split": "dev",
+      "category": "diagram",
+      "question": "What event does order-service publish at the end of order placement?",
+      "status": "answered",
+      "key_facts": [
+        "OrderPlaced"
+      ],
+      "required_citations": [
+        "DIAG-02@v1"
+      ],
+      "superseded_citations": []
+    },
+    {
+      "id": "V09",
+      "split": "dev",
+      "category": "unanswerable",
+      "question": "When is the next SOC 2 audit?",
+      "status": "not_found",
+      "key_facts": [],
+      "required_citations": [],
+      "superseded_citations": []
+    },
+    {
+      "id": "V10",
+      "split": "dev",
+      "category": "conflicting_versions",
+      "question": "What were SwiftShip support hours under the original agreement?",
+      "status": "answered",
+      "key_facts": [
+        "06:00",
+        "22:00"
+      ],
+      "required_citations": [
+        "CT-SWIFT-2024@v1"
+      ],
+      "superseded_citations": []
+    }
+  ]
+}

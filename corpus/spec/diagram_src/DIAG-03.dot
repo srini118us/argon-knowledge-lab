@@ -1,0 +1,5 @@
+digraph G { rankdir=LR; label="DIAG-03 v1  Deployment topology"; labelloc=t; fontsize=20; node [shape=box, style=rounded, fontname=Helvetica]; compound=true;
+ subgraph cluster_e { label="us-east (primary)"; e1[label="order / inventory / payment"]; e2[label="pricing / shipping / carrier-gateway"]; e3[label="notification / identity / customer"]; e4[label="returns / billing"]; e5[label="reporting-service"]; }
+ subgraph cluster_w { label="us-west (DR, Tier 1 only)"; w1[label="order / inventory / payment"]; }
+ e1->w1[label="replication", style=dashed, ltail=cluster_e];
+}

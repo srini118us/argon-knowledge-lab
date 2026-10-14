@@ -1,0 +1,572 @@
+{
+  "company": "Northwind Logistics",
+  "platform": "Orion order management platform",
+  "global_rules": [
+    "Write as realistic internal enterprise documentation in Markdown, the way real teams write: headings, short paragraphs, some tables or lists, occasional informal tone in notes.",
+    "State every fact listed in must_state for the document clearly, using the exact numbers, names and IDs given.",
+    "Do not invent any other numbers, limits, dates, percentages, versions, team names, vendor names, regions or IDs beyond those listed for the document or in the shared context. Prose, rationale and context are encouraged; new hard facts are not.",
+    "Never state anything listed in forbidden_everywhere, not even approximately or by implication.",
+    "Each document starts with a metadata block: Document ID, Version, Title, Date, Status, and Supersedes or Superseded by where given.",
+    "Length target per document is given in approx_words. Do not pad with lists of invented facts; pad with realistic narrative, context, rationale and procedure.",
+    "Also never state anything in the document's own must_not_state list."
+  ],
+  "shared_context": {
+    "services": [
+      "order-service",
+      "inventory-service",
+      "pricing-service",
+      "payment-service",
+      "shipping-service",
+      "carrier-gateway",
+      "notification-service",
+      "customer-service",
+      "returns-service",
+      "billing-service",
+      "reporting-service",
+      "identity-service"
+    ],
+    "teams": [
+      "Fulfillment",
+      "Commerce",
+      "Logistics",
+      "Platform",
+      "Data",
+      "CRM"
+    ],
+    "vendors": {
+      "SwiftShip": "carrier API",
+      "PayNimbus": "payment gateway",
+      "Relatia": "CRM",
+      "LedgerOne": "ERP"
+    },
+    "event_bus_current": "Apache Kafka",
+    "event_bus_previous": "RabbitMQ"
+  },
+  "forbidden_everywhere": [
+    "Any recovery tier, RPO or RTO for customer-service",
+    "Any termination or notice period for the PayNimbus contract",
+    "The number of Kafka brokers",
+    "Any SLA, availability or response time for the LedgerOne integration",
+    "Any rate limit imposed by Relatia",
+    "Any budget or cost figure for the Kafka migration",
+    "Any version 1 of the shipping API, or a label generation target for it",
+    "Any maximum depth or size of the payment-retry queue",
+    "Whether payment-service calls PayNimbus synchronously or asynchronously",
+    "The Kafka topic name shipment-requests, or how shipping-service hands requests to carrier-gateway",
+    "The order in which order-service calls other services when placing an order",
+    "Which region hosts reporting-service, and which region is the disaster recovery region",
+    "The data warehouse name Polaris DW, or where reporting-service loads data",
+    "The egress-proxy component, or what sits between carrier-gateway and SwiftShip",
+    "Any date for a SOC 2 audit",
+    "Any cloud region names such as us-east or us-west",
+    "The event name OrderPlaced"
+  ],
+  "documents": [
+    {
+      "id": "ADR-003",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Use RabbitMQ as the event bus",
+      "date": "2024-02-12",
+      "status": "Superseded",
+      "superseded_by": "ADR-019",
+      "approx_words": 900,
+      "must_state": [
+        "Decision: adopt RabbitMQ as the Orion event bus",
+        "Status: Superseded by ADR-019",
+        "Considered alternatives included Apache Kafka, rejected at the time because the team lacked operational experience"
+      ]
+    },
+    {
+      "id": "ADR-007",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Order API versioning and idempotency",
+      "date": "2024-09-03",
+      "status": "Accepted",
+      "approx_words": 900,
+      "must_state": [
+        "Order API v2 introduces a mandatory Idempotency-Key header on order creation",
+        "Order API v1 will be deprecated once v2 is available",
+        "Motivation: client retries could create duplicate orders on v1"
+      ]
+    },
+    {
+      "id": "ADR-011",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Service to service authentication",
+      "date": "2025-01-20",
+      "status": "Accepted",
+      "approx_words": 850,
+      "must_state": [
+        "All service to service calls inside Orion use OAuth2 client credentials issued by identity-service",
+        "Transport level security requirements for these calls are defined in POL-SEC-01 and are not repeated here",
+        "This applies to every internal call, including payment-service calling inventory-service"
+      ],
+      "must_not_state": [
+        "mTLS or mutual TLS"
+      ]
+    },
+    {
+      "id": "ADR-019",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Migrate the event bus to Apache Kafka",
+      "date": "2025-06-10",
+      "status": "Accepted",
+      "supersedes": "ADR-003",
+      "approx_words": 1050,
+      "must_state": [
+        "Decision: migrate the Orion event bus from RabbitMQ to Apache Kafka",
+        "Supersedes ADR-003",
+        "The order-events topic is created with 24 partitions",
+        "Topic retention follows the default in POL-DR-02 unless an ADR overrides it"
+      ]
+    },
+    {
+      "id": "ADR-021",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Retention for the order-events topic",
+      "date": "2025-08-22",
+      "status": "Accepted",
+      "approx_words": 700,
+      "must_state": [
+        "Retention for the order-events Kafka topic is set to 14 days",
+        "This overrides the 7 day default in POL-DR-02 for order-events only; all other topics keep the default",
+        "Reason: reporting backfills after incidents needed more than a week of events"
+      ]
+    },
+    {
+      "id": "ADR-024",
+      "version": "v1",
+      "type": "Architecture decision record",
+      "title": "Outbound limits for carrier-gateway",
+      "date": "2025-10-01",
+      "status": "Accepted",
+      "approx_words": 900,
+      "must_state": [
+        "carrier-gateway outbound traffic to SwiftShip is capped at 100 requests per second",
+        "The cap deliberately stays below the contracted SwiftShip limit to leave headroom",
+        "A circuit breaker opens after 5 consecutive failures",
+        "Written as a follow up to postmortem PM-2025-014"
+      ]
+    },
+    {
+      "id": "SPEC-ORDER-API",
+      "version": "v1",
+      "type": "API specification",
+      "title": "Order API v1",
+      "date": "2024-03-04",
+      "status": "Deprecated",
+      "approx_words": 1000,
+      "must_state": [
+        "Order API v1 is deprecated",
+        "Sunset date: 2025-12-31; after this date v1 requests are rejected",
+        "v1 has no idempotency mechanism"
+      ]
+    },
+    {
+      "id": "SPEC-ORDER-API",
+      "version": "v2",
+      "type": "API specification",
+      "title": "Order API v2",
+      "date": "2024-11-18",
+      "status": "Current",
+      "approx_words": 1250,
+      "must_state": [
+        "Order creation requires the Idempotency-Key header",
+        "Idempotency keys are retained for 24 hours; a reused key within that window returns the original order",
+        "Rate limit: 200 requests per minute per client",
+        "New integrations must use v2"
+      ]
+    },
+    {
+      "id": "SPEC-SHIP-API",
+      "version": "v2",
+      "type": "API specification",
+      "title": "Shipping API v2",
+      "date": "2025-03-10",
+      "status": "Current",
+      "approx_words": 1050,
+      "must_state": [
+        "Shipping API v2 is served by shipping-service",
+        "Internal target for label generation latency: 2 seconds at p95"
+      ]
+    },
+    {
+      "id": "SPEC-PAY-INT",
+      "version": "v1",
+      "type": "Integration specification",
+      "title": "PayNimbus integration",
+      "date": "2024-05-06",
+      "status": "Superseded",
+      "superseded_by": "SPEC-PAY-INT v2",
+      "approx_words": 850,
+      "must_state": [
+        "payment-service uses a 10 second timeout for PayNimbus calls",
+        "Status: Superseded by version v2"
+      ]
+    },
+    {
+      "id": "SPEC-PAY-INT",
+      "version": "v2",
+      "type": "Integration specification",
+      "title": "PayNimbus integration",
+      "date": "2025-07-14",
+      "status": "Current",
+      "supersedes": "SPEC-PAY-INT v1",
+      "approx_words": 1000,
+      "must_state": [
+        "payment-service uses an 8 second timeout for PayNimbus calls",
+        "The timeout was reduced from 10 seconds to align with the PayNimbus contract response guarantee of 8 seconds at p99"
+      ]
+    },
+    {
+      "id": "CT-SWIFT-2024",
+      "version": "v1",
+      "type": "Vendor contract summary",
+      "title": "SwiftShip carrier services agreement",
+      "date": "2024-04-01",
+      "status": "Amended",
+      "superseded_by": "CT-SWIFT-2024 Amendment 1",
+      "approx_words": 1050,
+      "must_state": [
+        "SwiftShip API rate limit: 50 requests per second",
+        "Vendor support hours: 06:00 to 22:00 Eastern Time"
+      ]
+    },
+    {
+      "id": "CT-SWIFT-2024",
+      "version": "A1",
+      "type": "Vendor contract amendment",
+      "title": "SwiftShip agreement, Amendment 1",
+      "date": "2025-09-15",
+      "status": "Current",
+      "supersedes": "CT-SWIFT-2024 v1 for the terms below",
+      "approx_words": 700,
+      "must_state": [
+        "Rate limit raised to 120 requests per second",
+        "Vendor support is now available 24x7",
+        "All other terms of the original agreement are unchanged"
+      ]
+    },
+    {
+      "id": "CT-PAYN-2024",
+      "version": "v1",
+      "type": "Vendor contract summary",
+      "title": "PayNimbus payment services agreement",
+      "date": "2024-06-01",
+      "status": "Current",
+      "approx_words": 1050,
+      "must_state": [
+        "Availability SLA: 99.95%",
+        "Response guarantee: 8 seconds at p99",
+        "Settlement period: T+2",
+        "Fee dispute window: 60 days"
+      ]
+    },
+    {
+      "id": "RB-CARRIER-01",
+      "version": "v1",
+      "type": "Runbook",
+      "title": "carrier-gateway incidents",
+      "date": "2024-07-08",
+      "status": "Superseded",
+      "superseded_by": "RB-CARRIER-01 v2",
+      "approx_words": 850,
+      "must_state": [
+        "Maximum retries per carrier request: 5",
+        "Escalate to the Logistics on-call"
+      ],
+      "must_not_state": [
+        "Which team owns carrier-gateway"
+      ]
+    },
+    {
+      "id": "RB-CARRIER-01",
+      "version": "v2",
+      "type": "Runbook",
+      "title": "carrier-gateway incidents",
+      "date": "2025-08-20",
+      "status": "Current",
+      "supersedes": "RB-CARRIER-01 v1",
+      "approx_words": 1100,
+      "must_state": [
+        "Maximum retries per carrier request: 3",
+        "Exponential backoff with a 2 second base",
+        "Retries were reduced after PM-2025-014",
+        "Escalate to the Logistics on-call; contact SwiftShip support within the contracted support hours"
+      ],
+      "must_not_state": [
+        "Which team owns carrier-gateway"
+      ]
+    },
+    {
+      "id": "RB-PAYMENT-02",
+      "version": "v1",
+      "type": "Runbook",
+      "title": "Payment failures",
+      "date": "2025-02-03",
+      "status": "Current",
+      "approx_words": 900,
+      "must_state": [
+        "Failed PayNimbus payments are placed on the payment-retry queue",
+        "payment-service processes the payment-retry queue hourly",
+        "PayNimbus has no secondary provider; there is no automatic failover"
+      ],
+      "must_not_state": [
+        "Which team owns payment-service"
+      ]
+    },
+    {
+      "id": "RB-KAFKA-01",
+      "version": "v1",
+      "type": "Runbook",
+      "title": "Kafka consumer lag",
+      "date": "2025-07-01",
+      "status": "Current",
+      "approx_words": 850,
+      "must_state": [
+        "Consumer lag alert threshold: 50,000 messages",
+        "The Kafka platform is owned by the Platform team"
+      ]
+    },
+    {
+      "id": "PM-2025-014",
+      "version": "v1",
+      "type": "Incident postmortem",
+      "title": "Carrier label outage",
+      "date": "2025-08-06",
+      "status": "Final",
+      "approx_words": 1250,
+      "must_state": [
+        "Incident date: 2025-08-04",
+        "Root cause: a retry storm from carrier-gateway exceeded the SwiftShip rate limit, which was then 50 requests per second",
+        "Service affected: carrier-gateway",
+        "Follow ups: reduce retries in RB-CARRIER-01, and write an ADR to cap outbound traffic to SwiftShip (no ADR number assigned yet at the time of writing)"
+      ],
+      "must_not_state": [
+        "ADR-024",
+        "Which team owns carrier-gateway"
+      ]
+    },
+    {
+      "id": "PM-2025-021",
+      "version": "v1",
+      "type": "Incident postmortem",
+      "title": "Duplicate orders from v1 clients",
+      "date": "2025-10-06",
+      "status": "Final",
+      "approx_words": 1050,
+      "must_state": [
+        "Incident date: 2025-10-02",
+        "Root cause: clients still on Order API v1, which has no idempotency, retried timed out requests and created duplicate orders",
+        "Action: the Order API v1 sunset was accelerated and clients were told to move to v2 before the sunset"
+      ]
+    },
+    {
+      "id": "POL-DR-02",
+      "version": "v1",
+      "type": "Policy",
+      "title": "Disaster recovery and event retention",
+      "date": "2025-01-15",
+      "status": "Current",
+      "approx_words": 1100,
+      "must_state": [
+        "Default Kafka topic retention: 7 days",
+        "Tier 1 services: order-service, payment-service, inventory-service",
+        "Tier 1 targets: RPO 15 minutes, RTO 4 hours",
+        "Tier 3 services: reporting-service",
+        "Tier 3 targets: RPO 24 hours"
+      ],
+      "must_not_state": [
+        "Which team owns any service"
+      ]
+    },
+    {
+      "id": "POL-SEC-01",
+      "version": "v1",
+      "type": "Policy",
+      "title": "Platform security policy",
+      "date": "2024-01-22",
+      "status": "Superseded",
+      "superseded_by": "POL-SEC-01 v2",
+      "approx_words": 900,
+      "must_state": [
+        "mTLS is required between services",
+        "Secrets are stored in HashiCorp Vault",
+        "Secrets and keys are rotated every 180 days"
+      ]
+    },
+    {
+      "id": "POL-SEC-01",
+      "version": "v2",
+      "type": "Policy",
+      "title": "Platform security policy",
+      "date": "2025-03-03",
+      "status": "Current",
+      "supersedes": "POL-SEC-01 v1",
+      "approx_words": 1000,
+      "must_state": [
+        "mTLS is required between services",
+        "Secrets are stored in HashiCorp Vault",
+        "Secrets and keys are rotated every 90 days (reduced from 180 days)"
+      ]
+    },
+    {
+      "id": "POL-RET-03",
+      "version": "v1",
+      "type": "Policy",
+      "title": "Data retention",
+      "date": "2025-02-10",
+      "status": "Current",
+      "approx_words": 900,
+      "must_state": [
+        "Order records are retained for 7 years",
+        "Customer PII is retained for 3 years after account closure",
+        "Application logs are retained for 90 days"
+      ]
+    },
+    {
+      "id": "CAT-SERVICES",
+      "version": "2024",
+      "type": "Service catalog",
+      "title": "Orion service catalog 2024",
+      "date": "2024-06-30",
+      "status": "Superseded",
+      "superseded_by": "CAT-SERVICES 2025",
+      "approx_words": 900,
+      "must_state": [
+        "returns-service is owned by Fulfillment",
+        "Lists every service with its owning team as in the 2025 catalog except returns-service"
+      ]
+    },
+    {
+      "id": "CAT-SERVICES",
+      "version": "2025",
+      "type": "Service catalog",
+      "title": "Orion service catalog 2025",
+      "date": "2025-09-01",
+      "status": "Current",
+      "supersedes": "CAT-SERVICES 2024",
+      "approx_words": 1100,
+      "must_state": [
+        "Owners: order-service Fulfillment; inventory-service Fulfillment; returns-service Commerce (moved from Fulfillment); pricing-service Commerce; payment-service Commerce; billing-service Commerce; shipping-service Logistics; carrier-gateway Logistics; notification-service Platform; identity-service Platform; reporting-service Data; customer-service CRM",
+        "order-service owns order creation and order cancellation"
+      ]
+    },
+    {
+      "id": "MEET-2025-10-OFFSITE",
+      "version": "v1",
+      "type": "Meeting notes",
+      "title": "Architecture offsite notes",
+      "date": "2025-10-09",
+      "status": "Informal",
+      "approx_words": 1000,
+      "noise": true,
+      "must_state": [
+        "Informal notes about roadmap brainstorming, team morale and the venue; no decisions recorded"
+      ]
+    },
+    {
+      "id": "HR-2025-BENEFITS",
+      "version": "v1",
+      "type": "HR notice",
+      "title": "Open enrollment reminder",
+      "date": "2025-10-20",
+      "status": "Informational",
+      "approx_words": 650,
+      "noise": true,
+      "must_state": [
+        "Benefits open enrollment closes on 2025-11-15"
+      ]
+    },
+    {
+      "id": "PROJ-ROBOTICS",
+      "version": "v1",
+      "type": "Project brief",
+      "title": "Warehouse robotics pilot",
+      "date": "2025-05-12",
+      "status": "Pilot",
+      "approx_words": 1000,
+      "noise": true,
+      "must_state": [
+        "The pilot runs in the Columbus warehouse",
+        "The pilot is unrelated to Orion and has no integration with it yet"
+      ]
+    },
+    {
+      "id": "CT-CAFE-2025",
+      "version": "v1",
+      "type": "Vendor contract summary",
+      "title": "Cafeteria services agreement",
+      "date": "2025-01-05",
+      "status": "Current",
+      "approx_words": 650,
+      "noise": true,
+      "must_state": [
+        "Vendor: Brightplate Catering",
+        "Service hours: 07:00 to 15:00 on weekdays"
+      ]
+    },
+    {
+      "id": "RFC-008",
+      "version": "v1",
+      "type": "Request for comments",
+      "title": "GraphQL gateway for Orion",
+      "date": "2025-04-22",
+      "status": "Withdrawn",
+      "approx_words": 900,
+      "must_state": [
+        "Status: Withdrawn",
+        "Proposed a GraphQL gateway in front of Orion APIs; withdrawn because the API team prioritized the Order API v2 migration"
+      ]
+    }
+  ],
+  "diagrams": [
+    {
+      "id": "DIAG-01",
+      "version": "v1",
+      "title": "Orion system context",
+      "shows": [
+        "payment-service calls PayNimbus with a sync REST arrow",
+        "shipping-service publishes to the Kafka topic shipment-requests, consumed by carrier-gateway",
+        "carrier-gateway calls SwiftShip through egress-proxy",
+        "customer-service syncs with Relatia",
+        "billing-service exports to LedgerOne"
+      ]
+    },
+    {
+      "id": "DIAG-02",
+      "version": "v1",
+      "title": "Order placement sequence",
+      "shows": [
+        "order-service calls inventory-service (reserve stock) first",
+        "then pricing-service (quote)",
+        "then payment-service (authorize)",
+        "then publishes OrderPlaced to order-events"
+      ]
+    },
+    {
+      "id": "DIAG-03",
+      "version": "v1",
+      "title": "Deployment topology",
+      "shows": [
+        "Primary region us-east hosts all services including reporting-service",
+        "DR region us-west hosts Tier 1 services only",
+        "reporting-service runs in us-east only"
+      ]
+    },
+    {
+      "id": "DIAG-04",
+      "version": "v1",
+      "title": "Reporting data flow",
+      "shows": [
+        "reporting-service consumes order-events",
+        "and loads into Polaris DW"
+      ]
+    }
+  ]
+}
