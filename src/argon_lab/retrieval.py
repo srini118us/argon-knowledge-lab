@@ -65,25 +65,43 @@ class Index:
         texts = [_embed_text(c, docs[c.doc_id].title) for c in self.chunks]
         key = hashlib.sha256(json.dumps([EMBED_MODEL, texts]).encode()).hexdigest()[:16]
         cache = ROOT / "results" / "index" / f"{size}_{'cap' if include_captions else 'text'}_{key}.npz"
-        if cache.exists():
-            self.vectors = np.load(cache)["v"]
-        else:
+        self.vectors = np.load(cache)["v"] if cache.exists() else None
+        if self.vectors is None or len(self.vectors) != len(self.chunks):
+            # A stale or malformed cache (one vector per batch instead of per chunk) is rebuilt.
             self.vectors = self._embed(texts, "RETRIEVAL_DOCUMENT")
             cache.parent.mkdir(parents=True, exist_ok=True)
             np.savez(cache, v=self.vectors)
             (cache.with_suffix(".json")).write_text(json.dumps([asdict(c) | {"chars": len(c.text)} for c in self.chunks], indent=1))
 
+    def _embed_call(self, contents, task: str):
+        try:
+            return self.client.models.embed_content(model=EMBED_MODEL, contents=contents, config={"task_type": task})
+        except Exception:  # noqa: BLE001  model may not accept task_type
+            return self.client.models.embed_content(model=EMBED_MODEL, contents=contents)
+
     def _embed(self, texts: list[str], task: str) -> np.ndarray:
+        """One vector per text, verified.
+
+        gemini-embedding-2 is multimodal and can treat a plain list of strings
+        as ONE multi part input, returning a single vector for the whole batch.
+        So each text is sent as its own Content, and the count is checked; if
+        it still does not match, texts are embedded one call at a time.
+        """
+        from google.genai import types
         out = []
         for i in range(0, len(texts), 50):
             batch = texts[i:i + 50]
             self.embed_tokens += sum(len(t) for t in batch) // 4
-            try:
-                r = self.client.models.embed_content(model=EMBED_MODEL, contents=batch, config={"task_type": task})
-            except Exception:  # noqa: BLE001  model may not accept task_type
-                r = self.client.models.embed_content(model=EMBED_MODEL, contents=batch)
-            out.extend(e.values for e in r.embeddings)
+            contents = [types.Content(parts=[types.Part(text=t)]) for t in batch]
+            r = self._embed_call(contents, task)
+            if len(r.embeddings) == len(batch):
+                out.extend(e.values for e in r.embeddings)
+            else:
+                for t in batch:
+                    out.append(self._embed_call(t, task).embeddings[0].values)
         v = np.array(out, dtype=np.float32)
+        if len(v) != len(texts):
+            raise RuntimeError(f"embedding count mismatch: {len(v)} vectors for {len(texts)} texts")
         return v / np.linalg.norm(v, axis=1, keepdims=True)
 
     def search(self, query: str, k: int) -> list[tuple[Chunk, float]]:
