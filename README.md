@@ -1,12 +1,29 @@
-# Architecture Knowledge Assistant: Long Context vs RAG vs Agentic Retrieval on Gemini 4 Argon
+# Gemini 4 Argon vs Gemini 3.8 Flash: Two Enterprise Architecture Experiments
+
+This repository holds two controlled experiments run on 2026-10-13 to 2026-10-16, shortly after Gemini 4 Argon became generally available. Both compare `gemini-4-argon` with `gemini-3.8-flash` on synthetic but realistic enterprise architecture work, score every answer deterministically against a frozen answer key, and report cost, latency and tokens from API usage fields. Each experiment was run once; results apply to these tasks and dates only.
+
+| | Experiment 1: knowledge retrieval | Experiment 2: architecture review decisions |
+|---|---|---|
+| Question | When should an architect choose classic RAG, long context or agentic retrieval? | With all evidence in context, does Argon make better multistep decisions than Flash? |
+| Task | 50 questions over a 47K token architecture corpus, including 4 diagrams | 12 vendor integration proposals judged against a 16 document policy pack (about 4.4K tokens) |
+| Configurations | 4 retrieval designs x 2 models, medium thinking | 2 models x 2 thinking levels (medium, high), no retrieval |
+| Accuracy | Long context 50/50 for both models. RAG and agentic arms 41 to 49; the two models missed the same questions except one (D01, agentic) | Medium thinking 12/12 for both models. No incorrect decision in any configuration; 3 high thinking calls returned no answer |
+| Cost (usage based estimates) | Argon about 6.4 times Flash in long context ($4.56 against $0.71 for 50 questions) | Argon about 1.3 times Flash at medium ($0.211 against $0.163 for 12 cases) |
+| Other differences | Most errors coincided with evidence the retrieval step did not supply; Flash cached far more of its input (71% against 2% in long context) | In this single run, Argon medium had the lowest latency and token use; high thinking cost 3 to 6 times more and was less reliable |
+| Main limitation | Single run, synthetic corpus, untuned retrieval | Ceiling effect (both medium arms perfect), single run, crisp synthetic rules |
+| Details | Sections 1 to 11 below | [`experiments/arb/README.md`](experiments/arb/README.md) and [`REPORT.md`](experiments/arb/REPORT.md) |
+
+**Combined reading.** On both tasks the cheaper model was sufficient: its errors were almost entirely shared with Argon's and mostly coincided with evidence that retrieval did not supply (Experiment 1) or with calls that never completed (Experiment 2), not by reasoning mistakes Argon avoided. Argon cost more in both experiments. Its measured advantages were one agentic retrieval question in Experiment 1 and, in a single run, lower latency and token use at medium thinking in Experiment 2. Neither experiment included enough cases where the models diverged to establish a difference in reasoning strength; that would need harder tasks on which the cheaper configuration fails.
+
+Status: both experiments are closed. No paid runs have been made since 2026-10-16. Costs throughout are estimates from API usage fields and have not been reconciled with billing.
+
+---
+
+# Experiment 1: Long Context vs RAG vs Agentic Retrieval
 
 **Research question:** when should an enterprise AI architect choose classic RAG, long context inference, or agentic retrieval?
 
-This lab answers that question for one realistic setting: a new architect asking 50 questions about a synthetic company's architecture documentation (about 47K tokens). It compares four retrieval designs on `gemini-4-argon` and `gemini-3.8-flash`, scores every answer deterministically against a frozen answer key, and reports cost, latency and caching from API usage fields.
-
-Status: main benchmark complete (2026-10-14). No further paid runs have been made for Experiment 1 since. Results apply to this corpus and these dates only.
-
-**Experiment 2** (Architecture Review Board decisions, all evidence in context, 2026-10-16) is a separate, closed experiment in [`experiments/arb/`](experiments/arb/README.md), with its own report ([`REPORT.md`](experiments/arb/REPORT.md)) and a comparison with this experiment. Nothing below was changed by it.
+A new architect asks 50 questions about a synthetic company's architecture documentation (about 47K tokens). The experiment compares four retrieval designs on both models, scores every answer deterministically against a frozen answer key, and reports cost, latency and caching from API usage fields. Main benchmark completed 2026-10-14; nothing in this section was changed by Experiment 2.
 
 ## 1. Headline results (main benchmark, valid)
 
@@ -224,3 +241,4 @@ Remaining hypotheses, not yet checked: other usage on the same billing account o
 | `results/review/manual_review.json` | Documented manual review overrides (C05 only) |
 | `results/analysis/` | Results table, error report, publication metrics |
 | `docs/plan.md`, `docs/medium_outline.md` | Preregistered plan; article outline |
+| `experiments/arb/` | Experiment 2: policy pack, cases, answer key engine, runner with hard deadline and spending ledger, scorer, raw results, offline tests, README and REPORT.md |
