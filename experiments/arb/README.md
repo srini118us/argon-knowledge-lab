@@ -1,8 +1,41 @@
-# Experiment 2: Architecture Review Board decisions (design, not yet run)
+# Experiment 2: Architecture Review Board decisions
 
 **Question:** when all the evidence is in context, does Gemini 4 Argon make better multistep architecture decisions than Gemini 3.8 Flash, and does high thinking change the answer?
 
-Status: built and validated offline on 2026-10-16. **No API calls have been made.** Experiment 1 (repository root) is unchanged.
+Status: run once on 2026-10-16 (12 test cases x 4 arms). Experiment 1 (repository root) is unchanged.
+
+## Results (single run, 12 test cases)
+
+Run file: `results/runs/test_20261016_152247.jsonl`. Scored by `score_arb.py`. Costs are usage based estimates.
+
+| Arm | Fully correct | Decision correct | Evidence valid | Est. cost | Cost per fully correct | Median latency | Output plus thinking per case |
+|---|---|---|---|---|---|---|---|
+| Flash, medium | 12/12 | 12/12 | 12/12 | $0.16 | $0.014 | 18 s | 2,620 |
+| Argon, medium | 12/12 | 12/12 | 12/12 | $0.21 | $0.018 | 11 s | 713 |
+| Argon, high | 11/12 | 11/12 | 11/12 | $1.27 | $0.115 | 67 s | 9,513 |
+| Flash, high | 10/12 | 10/12 | 10/12 | $0.47* | $0.047 | 72 s | 9,563 |
+
+\* Excludes two failed calls that returned no usage; the guard booked them at worst case ($0.25).
+
+Every answer that came back was fully correct: exact decision, exact violation and condition sets, all required citations, no reliance on the superseded policy, no citations to clauses that do not exist. All three misses are answers that never arrived:
+
+| Case | Arm | Cause |
+|---|---|---|
+| T05 | Flash, high | Server disconnected after 3,247 s; no answer |
+| T12 | Flash, high | Server disconnected after 272 s; no answer |
+| T12 | Argon, high | Used 31,997 thinking tokens of the 32,000 cap, 3 output tokens; no answer |
+
+### Findings (this run only)
+
+1. **No accuracy difference at medium thinking.** Both models were fully correct on all 12 multistep cases. The decision rule set before the run (repeat only if two arms differ by 3 or more cases) does not call for repeated trials.
+2. **Argon at medium was the most token efficient arm:** about 700 output plus thinking tokens per case against Flash's 2,600, with the lowest median latency (11 s against 18 s). Its estimated cost was about 1.3 times Flash's.
+3. **High thinking did not help either model here.** It cost 3 to 6 times more than medium, was 4 to 6 times slower, and produced every miss: Argon exhausted a 32K budget on T12 (and a 16K budget on DEV1 in the pilot), and Flash lost two calls to server disconnects.
+4. **The test hit a ceiling.** Perfect scores at medium mean these 12 cases, though they require 3 to 7 reasoning steps each, were not hard enough to separate the models on accuracy. This is the main limitation of the result.
+
+### Harness defects found during the run
+
+* **The 10 minute timeout was not enforced.** The T05 call ran 54 minutes before the server dropped it. `HttpOptions.timeout` did not bound a long running Interactions call in this SDK version. A future run needs a hard timeout around each call.
+* Earlier pilot attempts used a key from a free tier project (503 and 429 errors, no tokens processed); see Pilot findings.
 
 ## Why this design
 
@@ -100,6 +133,9 @@ Preflight after the pilot (introductory prices; output plus thinking assumed at 
 | Pilot, 3 dev cases (done) | 10 | $0.39 actual | |
 | DEV1 rerun, Argon high only | 1 | about $0.21 | $0.33 |
 | Test, 12 cases | 48 | about $4.02 | $10.95 |
+| **Test, actual** | 48 | **$2.11 measured** plus $0.25 booked for 2 failed calls | |
+
+**Experiment total in the ledger: $3.27.** Of this, about $2.65 is measured usage (pilot $0.39, DEV1 rerun $0.15, test $2.11) and $0.63 is worst case booking for calls that failed without usage data (free tier errors and two disconnects); their real cost is not known and is most likely lower.
 
 The ledger already holds $0.77 ($0.39 real plus $0.38 booked for failed free tier calls). **With a $5 cap the test run is likely to stop before the last cases**; case major order keeps the arms comparable if it does, but a complete run needs a higher cap (about $7) or fewer arms. That is the owner's decision before the test run.
 
@@ -112,11 +148,13 @@ Guard: before every call, the ledger total plus that call's worst case (input es
 3. **Test run**, 12 cases x 4 arms (about $2.12).
 4. **Repeated trials (separate approval):** 12 cases cannot establish a difference. If any two arms differ by 3 or more fully correct cases, run 2 more trials (about $4.25 more). Otherwise report the tie.
 
-## Limitations known in advance
+## Limitations
 
 * One synthetic policy pack written by the experimenter; the rules are deliberately crisp, so real policy ambiguity is not tested.
 * 12 test cases, one trial: descriptive only.
 * The pack is short (about 4.4K tokens), so this tests reasoning, not long context.
+* Ceiling effect: medium arms were perfect, so the experiment cannot rank the models on accuracy.
+* High thinking results depend on the 32K output cap; a larger cap might have let Argon finish T12.
 
 ## Commands
 
