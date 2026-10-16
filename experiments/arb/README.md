@@ -75,7 +75,7 @@ Rule IDs are parsed tolerantly (`SEC-POL@v3#SP-3.1` and `SP-3.1` both count). Wa
 
 ## Model configurations
 
-Identical system prompt, pack, proposal text and JSON schema for every arm; pack first and proposal last; `max_output_tokens` 16,000; no tools; no retries.
+Identical system prompt, pack, proposal text and JSON schema for every arm; pack first and proposal last; `max_output_tokens` 32,000 (includes thinking); no tools; no client retries; 10 minute timeout per call; cases run in case major order so every arm answers the same cases even if the cap stops the run.
 
 | Arm | Model | Thinking |
 |---|---|---|
@@ -84,15 +84,24 @@ Identical system prompt, pack, proposal text and JSON schema for every arm; pack
 | 3 | gemini-4-argon | medium |
 | 4 | gemini-4-argon | high |
 
+## Pilot findings (2026-10-16, dev cases)
+
+* Earlier attempts failed with 503 and 429 errors from a key on a free tier project; no tokens were processed. The guard booked them at worst case ($0.38 in the ledger, not real spend).
+* With a billed key, 9 of 12 calls completed and every answer parsed; all 9 decisions matched the key. Measured output plus thinking per case: about 1K to 2K at medium; about 13K for Flash at high.
+* Argon at high thinking on DEV1 used 15,997 thinking tokens and 3 output tokens, exactly the 16,000 cap, and returned no answer. The cap is honoured and includes thinking. The guard stopped the run because actual cost beat the worst case by $0.001: the input estimate (characters / 4) was 12% low.
+* Changes after the pilot: cap raised to 32,000 for all arms; input estimate margin 1.25; client retries off with a 10 minute timeout; case major order; an `--arms` filter for single arm reruns.
+
 ## Cost estimate and spending guard
 
-Preflight from `run_arb.py --dry-run` (introductory prices; output plus thinking assumed at 3,000 tokens per case for medium and 8,000 for high, to be replaced by pilot measurements):
+Preflight after the pilot (introductory prices; output plus thinking assumed at 2,000 tokens per case for medium and 20,000 for high; input estimate with a 1.25 margin):
 
 | Run | Calls | Expected | Worst case |
 |---|---|---|---|
-| Pilot, 3 dev cases | 12 | about $0.53 | $1.40 |
-| Test, 12 cases | 48 | about $2.12 | $5.59 |
-| **Total** | 60 | **about $2.65** | capped at $5.00 |
+| Pilot, 3 dev cases (done) | 10 | $0.39 actual | |
+| DEV1 rerun, Argon high only | 1 | about $0.21 | $0.33 |
+| Test, 12 cases | 48 | about $4.02 | $10.95 |
+
+The ledger already holds $0.77 ($0.39 real plus $0.38 booked for failed free tier calls). **With a $5 cap the test run is likely to stop before the last cases**; case major order keeps the arms comparable if it does, but a complete run needs a higher cap (about $7) or fewer arms. That is the owner's decision before the test run.
 
 Guard: before every call, the ledger total plus that call's worst case (input estimate plus 16,000 output tokens at the output rate) must stay within `--cap`, or the run stops. The ledger (`results/ledger.jsonl`) persists across runs, so the $5 cap covers pilot and test together. A failed call is charged at its worst case. If any call costs more than its worst case, the run stops and reports that the output cap was not honoured. Every call records its interaction ID and UTC timestamp for billing reconciliation.
 

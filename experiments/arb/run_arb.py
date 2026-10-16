@@ -14,7 +14,9 @@ Spending guard (stricter than Experiment 1's):
   * Every call, successful or failed, is appended to results/ledger.jsonl with its interaction ID and
     UTC timestamp, so the ledger can be reconciled against billing. A failed call is logged with a
     worst case cost, not $0.
-  * No retries: a failed call is recorded and the run continues with the next case.
+  * No retries (client retry attempts 0) and a 10 minute timeout per call: a failed or timed out call
+    is recorded, charged at worst case (the server may still bill a timed out call), and the run
+    continues with the next case.
 """
 from __future__ import annotations
 
@@ -41,10 +43,13 @@ RESULTS = HERE / "results"
 LEDGER = RESULTS / "ledger.jsonl"
 ARMS = [("gemini-3.8-flash", "medium"), ("gemini-3.8-flash", "high"),
         ("gemini-4-argon", "medium"), ("gemini-4-argon", "high")]
-MAX_OUTPUT_TOKENS = 16_000
-# Planning assumptions for the estimate only (output plus thinking tokens per case). Replaced by
-# measured values after the pilot.
-ASSUMED_OUTPUT = {"medium": 3_000, "high": 8_000}
+MAX_OUTPUT_TOKENS = 32_000   # includes thinking tokens (pilot: Argon high used all 16,000 on DEV1)
+# Planning assumptions for the estimate only (output plus thinking tokens per case), from the pilot:
+# medium about 1K to 2K for both models; high about 13K (Flash) to over 16K (Argon).
+ASSUMED_OUTPUT = {"medium": 2_000, "high": 20_000}
+INPUT_MARGIN = 1.25          # pilot: real input 5,241 tokens vs a characters/4 estimate about 12% lower
+TIMEOUT_MS = 600_000         # per call; pilot Argon high took 162 s at 16K
+RETRY_ATTEMPTS = 0           # no client side retries: a failed call is logged and charged at worst case
 
 
 class CapReached(Exception):
@@ -53,7 +58,7 @@ class CapReached(Exception):
 
 def input_tokens_estimate(case: dict) -> int:
     chars = len(arb.SYSTEM) + sum(len(p["text"]) for p in arb.prompt(case))
-    return chars // 4 + 50
+    return int((chars // 4 + 50) * INPUT_MARGIN)
 
 
 def worst_case_usd(model: str, case: dict) -> float:
@@ -112,9 +117,11 @@ def run(client, cases, arms, trials, cap, out_path, log=print) -> dict:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     stats = {"calls": 0, "spent": 0.0, "stopped": None}
     with out_path.open("a", encoding="utf-8") as f, LEDGER.open("a", encoding="utf-8") as ledger:
+        # Case major order: every arm answers a case before the next case starts, so if the cap stops
+        # the run, all arms have answered the same cases and remain comparable.
         for trial in range(trials):
-            for model, level in arms:
-                for case in cases:
+            for case in cases:
+                for model, level in arms:
                     worst = worst_case_usd(model, case)
                     already = ledger_spent()
                     if already + worst > cap:
@@ -163,15 +170,19 @@ def main() -> int:
     ap.add_argument("--cap", type=float, required=True, help="hard cap in USD across ALL runs of this experiment")
     ap.add_argument("--trials", type=int, default=1)
     ap.add_argument("--cases", nargs="*", help="limit to these case IDs")
+    ap.add_argument("--arms", nargs="*", help="limit to arms given as model:level, e.g. gemini-4-argon:high")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
     verify_key()
     cases = [c for c in arb.load_cases(args.split) if not args.cases or c["id"] in args.cases]
+    arms = [a for a in ARMS if not args.arms or f"{a[0]}:{a[1]}" in args.arms]
+    if not arms:
+        sys.exit(f"No arm matches {args.arms}; choose from {[f'{m}:{l}' for m, l in ARMS]}")
     est = worst = 0.0
-    print(f"{len(cases)} {args.split} cases x {len(ARMS)} arms x {args.trials} trial(s) = "
-          f"{len(cases) * len(ARMS) * args.trials} calls; pack ~{len(arb.pack_text()) // 4:,} tokens")
-    for model, level in ARMS:
+    print(f"{len(cases)} {args.split} cases x {len(arms)} arms x {args.trials} trial(s) = "
+          f"{len(cases) * len(arms) * args.trials} calls; pack ~{len(arb.pack_text()) // 4:,} tokens")
+    for model, level in arms:
         e = sum(expected_usd(model, level, c) for c in cases) * args.trials
         w = sum(worst_case_usd(model, c) for c in cases) * args.trials
         est, worst = est + e, worst + w
@@ -187,17 +198,20 @@ def main() -> int:
     if not os.getenv("GEMINI_API_KEY"):
         sys.exit("GEMINI_API_KEY is not set.")
     from google import genai
+    from google.genai import types
     import google.genai as gg
-    client = genai.Client()
+    client = genai.Client(http_options=types.HttpOptions(
+        timeout=TIMEOUT_MS, retry_options=types.HttpRetryOptions(attempts=RETRY_ATTEMPTS)))
     out = RESULTS / "runs" / f"{args.split}_{datetime.now():%Y%m%d_%H%M%S}.jsonl"
     out.parent.mkdir(parents=True, exist_ok=True)
     header = {"type": "header", "sdk": getattr(gg, "__version__", "unknown"), "python": platform.python_version(),
-              "split": args.split, "trials": args.trials, "arms": ARMS, "max_output_tokens": MAX_OUTPUT_TOKENS,
+              "split": args.split, "trials": args.trials, "arms": arms, "cases": [c["id"] for c in cases],
+              "max_output_tokens": MAX_OUTPUT_TOKENS, "timeout_ms": TIMEOUT_MS, "input_margin": INPUT_MARGIN,
               "pack_sha256": sha256(arb.pack_text()),
               "key_sha256": sha256((arb.SPEC / "key.json").read_text(encoding="utf-8")),
-              "rates": {m: rates(m) for m, _ in ARMS}, "retries": "none"}
+              "rates": {m: rates(m) for m, _ in arms}, "retry_attempts": RETRY_ATTEMPTS}
     out.write_text(json.dumps(header) + "\n", encoding="utf-8")
-    stats = run(client, cases, ARMS, args.trials, args.cap, out)
+    stats = run(client, cases, arms, args.trials, args.cap, out)
     print(f"\nSaved {out}\nCalls {stats['calls']}, charged ${stats['spent']:.4f}, "
           f"experiment total ${ledger_spent():.4f}" + (f"\nStopped: {stats['stopped']}" if stats["stopped"] else ""))
     return 2 if stats["stopped"] else 0

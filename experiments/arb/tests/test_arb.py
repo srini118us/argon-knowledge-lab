@@ -157,7 +157,20 @@ def test_stops_if_output_cap_not_honoured(isolated):
     assert stats["calls"] == 1 and "not honoured" in stats["stopped"]
 
 
-def test_full_plan_estimate_is_under_five_dollars():
-    dev, test = arb.load_cases("dev"), arb.load_cases("test")
-    expected = sum(run_arb.expected_usd(m, l, c) for m, l in run_arb.ARMS for c in dev + test)
-    assert expected < 5
+def test_cap_stop_leaves_every_arm_on_the_same_cases(isolated):
+    cases = arb.load_cases("test")
+    fake = types.SimpleNamespace(interactions=FakeInteractions(out_tokens=8_000))
+    out = isolated / "c.jsonl"
+    run_arb.run(fake, cases, run_arb.ARMS, 1, cap=0.5, out_path=out, log=lambda *_: None)
+    rows = [json.loads(l) for l in out.read_text().splitlines()]
+    per_arm = {}
+    for r in rows:
+        per_arm.setdefault((r["model"], r["level"]), []).append(r["case"])
+    done = sorted(per_arm.values(), key=len)
+    assert len(done[-1]) - len(done[0]) <= 1          # arms differ by at most the case in progress
+
+
+def test_estimate_includes_input_margin():
+    c = arb.load_cases("dev")[0]
+    raw = (len(arb.SYSTEM) + sum(len(p["text"]) for p in arb.prompt(c))) // 4 + 50
+    assert run_arb.input_tokens_estimate(c) == int(raw * run_arb.INPUT_MARGIN) > raw
