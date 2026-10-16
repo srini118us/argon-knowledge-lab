@@ -13,7 +13,7 @@ Run file: `results/runs/test_20261016_152247.jsonl`, scored by `score_arb.py` (o
 | Arm | Completed | Fully correct, of completed | Fully correct, end to end | Completion failures | Est. cost* | Median latency, completed | Output plus thinking per call** |
 |---|---|---|---|---|---|---|---|
 | Flash, medium | 12/12 | 12/12 | 12/12 | none | $0.163 | 18.0 s | 2,620 |
-| Argon, medium | 12/12 | 12/12 | 12/12 | none | $0.212 | 10.8 s | 713 |
+| Argon, medium | 12/12 | 12/12 | 12/12 | none | $0.211 | 10.8 s | 713 |
 | Argon, high | 11/12 | 11/11 | 11/12 | T12 budget exhausted | $1.267 | 63.7 s | 9,513 |
 | Flash, high | 10/12 | 10/10 | 10/12 | T05, T12 connection dropped | $0.468 | 61.0 s | 11,476 |
 
@@ -31,7 +31,7 @@ Every completed answer in every arm was fully correct: exact decision, exact vio
 ### Findings (this run only)
 
 1. **No accuracy difference.** Both medium arms were fully correct on all 12 cases, and every completed answer from the high arms was also correct. The rule fixed before the run (repeat only if two arms differ by 3 or more fully correct cases) is not triggered.
-2. **Argon at medium was the most efficient arm here:** about 3.7 times fewer output plus thinking tokens than Flash at medium (713 against 2,620) and the lowest median latency (10.8 s against 18.0 s), at about 1.3 times Flash's estimated cost ($0.212 against $0.163). This is one run on one task; it is not evidence that Argon is generally faster.
+2. **Argon at medium was the most efficient arm in this single 12 case run:** about 3.7 times fewer output plus thinking tokens than Flash at medium (713 against 2,620) and the lowest median latency (10.8 s against 18.0 s), at about 1.3 times Flash's estimated cost ($0.211 against $0.163). This is one run on one task; it is not evidence that Argon is generally faster.
 3. **High thinking added cost and latency without improving accuracy, and all completion failures occurred there.** Compared with medium it cost about 3.4 (Flash, per completed call) to 6.0 (Argon) times more and was about 3.4 to 5.9 times slower. One failure was a thinking budget exhausted (Argon T12); the two Flash failures were dropped connections that may reflect service conditions.
 4. **The benchmark hit a ceiling.** See "Why the ceiling means no ranking" below.
 
@@ -107,7 +107,7 @@ Test split: 2 approve, 4 approve_with_conditions, 6 reject. Three dev cases are 
 |---|---|
 | Decision accuracy | Exact match of the three way decision |
 | Fully correct | Decision, violation set and condition set all exact (primary metric) |
-| Evidence valid | Fully correct and every required clause, waiver and contract cited |
+| Evidence valid | Fully correct and every required clause, waiver and contract present in the structured `citations` array. Clauses named only in the rationale text are not counted. Approve cases (T01, T07) require no citations, so the check is informative on 10 of 12 cases; three approve answers left the array empty and cited only in the rationale |
 | Violation and condition F1 | Set precision and recall over rule IDs |
 | Superseded reliance | Cites SEC-POL@v2 for a clause without citing v3 for the same clause |
 | Unknown citations | Cites a document or clause that does not exist in the pack |

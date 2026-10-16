@@ -191,3 +191,21 @@ def test_published_experiment2_results_reproduce():
         s = got[arm]
         assert (s["fully_correct"], s["completed"], s["incomplete_cases"]) == (full, done, incomplete), arm
         assert s["incorrect_completed_cases"] == []
+
+
+@pytest.mark.skipif(not TEST_RUN.exists(), reason="test run file not present")
+def test_report_tables_match_scoring_output():
+    """REPORT.md must quote the scoring output exactly (rounded as printed)."""
+    report = (HERE / "REPORT.md").read_text(encoding="utf-8").splitlines()
+    rs = [r for r in rows(TEST_RUN) if r.get("type") == "row"]
+    names = {("gemini-3.8-flash", "medium"): "Flash, medium", ("gemini-4-argon", "medium"): "Argon, medium",
+             ("gemini-4-argon", "high"): "Argon, high", ("gemini-3.8-flash", "high"): "Flash, high"}
+    for s in score_arb.summarize(rs):
+        name = names[(s["model"], s["level"])]
+        cost_row = next(l for l in report if l.startswith(f"| {name} | $"))
+        exact = sum(r["cost_usd"] or 0 for r in rs if (r["model"], r["level"]) == (s["model"], s["level"]))
+        for v in (f"${exact:.3f}", f"{s['median_latency_s']:.1f} s", f"{s['mean_output_plus_thinking']:,}",
+                  f"{round(100 * s['completed'] / s['n'])}%"):
+            assert v in cost_row, (name, v, cost_row)
+        result_row = next(l for l in report if l.startswith(f"| {name} | ") and "/12" in l)
+        assert f"| {s['completed']}/12 | {s['fully_correct']}/{s['completed']} | {s['fully_correct']}/12 |" in result_row
