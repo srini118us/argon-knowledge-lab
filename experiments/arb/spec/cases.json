@@ -1,0 +1,305 @@
+{
+ "_note": "Structured proposals. Models see only the prose rendering from cases.render(). The answer key is computed by engine.py and frozen in key.json.",
+ "cases": [
+  {
+   "id": "DEV1",
+   "split": "dev",
+   "title": "Carrier label sync",
+   "vendor": "Parcelytics",
+   "fields": [
+    "shipment_id",
+    "delivery_address"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "mtls",
+   "retention_days": 20,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-09"
+  },
+  {
+   "id": "DEV2",
+   "split": "dev",
+   "title": "EU parcel insights",
+   "vendor": "InsightHub",
+   "fields": [
+    "shipment_id",
+    "customer_email"
+   ],
+   "data_subjects": [
+    "EU"
+   ],
+   "transport": "private_link",
+   "retention_days": 21,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-16"
+  },
+  {
+   "id": "DEV3",
+   "split": "dev",
+   "title": "Route optimisation pilot",
+   "vendor": "RouteMind",
+   "fields": [
+    "route_plan",
+    "driver_location"
+   ],
+   "data_subjects": [
+    "APAC"
+   ],
+   "transport": "mtls",
+   "retention_days": 7,
+   "encrypted_at_rest": false,
+   "source_zone": "Z3",
+   "egress_proxy": true,
+   "via_gateway": true,
+   "go_live": "2026-12-15"
+  },
+  {
+   "id": "T01",
+   "split": "test",
+   "title": "Year start parcel locker routing",
+   "vendor": "Parcelytics",
+   "fields": [
+    "shipment_id",
+    "delivery_address"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "mtls",
+   "retention_days": 25,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2027-01-05"
+  },
+  {
+   "id": "T02",
+   "split": "test",
+   "title": "Holiday address verification",
+   "vendor": "Parcelytics",
+   "fields": [
+    "shipment_id",
+    "delivery_address"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "tls",
+   "retention_days": 25,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-12-15"
+  },
+  {
+   "id": "T03",
+   "split": "test",
+   "title": "Transatlantic address cleansing",
+   "vendor": "Parcelytics",
+   "fields": [
+    "delivery_address"
+   ],
+   "data_subjects": [
+    "US",
+    "EU"
+   ],
+   "transport": "tls",
+   "retention_days": 20,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-05"
+  },
+  {
+   "id": "T04",
+   "split": "test",
+   "title": "Contact centre callback scoring",
+   "vendor": "InsightHub",
+   "fields": [
+    "shipment_id",
+    "customer_phone"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "mtls",
+   "retention_days": 50,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-19"
+  },
+  {
+   "id": "T05",
+   "split": "test",
+   "title": "Driver ETA prediction",
+   "vendor": "RouteMind",
+   "fields": [
+    "driver_location",
+    "route_plan"
+   ],
+   "data_subjects": [
+    "APAC"
+   ],
+   "transport": "mtls",
+   "retention_days": 10,
+   "encrypted_at_rest": false,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-18"
+  },
+  {
+   "id": "T06",
+   "split": "test",
+   "title": "Fleet telemetry with customer alerts",
+   "vendor": "TrackWave",
+   "fields": [
+    "telemetry",
+    "customer_email"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "mtls",
+   "retention_days": 7,
+   "encrypted_at_rest": true,
+   "source_zone": "Z3",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-24"
+  },
+  {
+   "id": "T07",
+   "split": "test",
+   "title": "Telemetry archive",
+   "vendor": "TrackWave",
+   "fields": [
+    "telemetry",
+    "route_plan"
+   ],
+   "data_subjects": [
+    "US",
+    "EU"
+   ],
+   "transport": "tls",
+   "retention_days": 365,
+   "encrypted_at_rest": false,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2027-01-05"
+  },
+  {
+   "id": "T08",
+   "split": "test",
+   "title": "Card refund reconciliation",
+   "vendor": "Parcelytics",
+   "fields": [
+    "shipment_id",
+    "card_pan"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "mtls",
+   "retention_days": 5,
+   "encrypted_at_rest": true,
+   "source_zone": "Z3",
+   "egress_proxy": true,
+   "via_gateway": false,
+   "go_live": "2026-11-30"
+  },
+  {
+   "id": "T09",
+   "split": "test",
+   "title": "EU retention extension",
+   "vendor": "InsightHub",
+   "fields": [
+    "customer_email"
+   ],
+   "data_subjects": [
+    "EU",
+    "US"
+   ],
+   "transport": "private_link",
+   "retention_days": 55,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-12"
+  },
+  {
+   "id": "T10",
+   "split": "test",
+   "title": "Year end delivery rerouting",
+   "vendor": "RouteMind",
+   "fields": [
+    "delivery_address",
+    "route_plan"
+   ],
+   "data_subjects": [
+    "APAC"
+   ],
+   "transport": "private_link",
+   "retention_days": 14,
+   "encrypted_at_rest": false,
+   "source_zone": "Z3",
+   "egress_proxy": true,
+   "via_gateway": true,
+   "go_live": "2027-01-04"
+  },
+  {
+   "id": "T11",
+   "split": "test",
+   "title": "US returns portal",
+   "vendor": "Parcelytics",
+   "fields": [
+    "customer_email",
+    "delivery_address"
+   ],
+   "data_subjects": [
+    "US"
+   ],
+   "transport": "tls",
+   "retention_days": 30,
+   "encrypted_at_rest": true,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2027-01-15"
+  },
+  {
+   "id": "T12",
+   "split": "test",
+   "title": "Driver location sharing for EU customers",
+   "vendor": "RouteMind",
+   "fields": [
+    "driver_location"
+   ],
+   "data_subjects": [
+    "EU"
+   ],
+   "transport": "mtls",
+   "retention_days": 10,
+   "encrypted_at_rest": false,
+   "source_zone": "Z2",
+   "egress_proxy": false,
+   "via_gateway": true,
+   "go_live": "2026-11-20"
+  }
+ ]
+}

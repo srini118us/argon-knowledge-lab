@@ -1,0 +1,140 @@
+{
+  "_note": "Single source of truth for the answer key. The policy pack in ../pack states the same rules in prose; tests/test_arb.py checks that every clause and number here appears in the pack.",
+  "classes": {
+    "shipment_id": "C1",
+    "route_plan": "C1",
+    "telemetry": "C1",
+    "customer_email": "C2",
+    "customer_phone": "C2",
+    "delivery_address": "C2",
+    "driver_location": "C2",
+    "card_pan": "C3"
+  },
+  "vendors": {
+    "Parcelytics": {
+      "contract": "CT-PARCEL@v2",
+      "region": "US",
+      "dpa_classes": [
+        "C1",
+        "C2"
+      ]
+    },
+    "InsightHub": {
+      "contract": "CT-INSIGHT@v1",
+      "region": "EU",
+      "dpa_classes": [
+        "C1",
+        "C2"
+      ]
+    },
+    "TrackWave": {
+      "contract": "CT-TRACK@v1",
+      "region": "US",
+      "dpa_classes": [
+        "C1"
+      ]
+    },
+    "RouteMind": {
+      "contract": "CT-ROUTE@v1",
+      "region": "APAC",
+      "dpa_classes": [
+        "C1",
+        "C2"
+      ]
+    }
+  },
+  "rules": {
+    "SP-2.1": {
+      "doc": "SEC-POL@v3",
+      "text": "vendor DPA must cover the highest data class sent"
+    },
+    "SP-2.2": {
+      "doc": "SEC-POL@v3",
+      "text": "C3 data is never sent to a third party"
+    },
+    "SP-3.1": {
+      "doc": "SEC-POL@v3",
+      "text": "C2 or higher leaving the internal network uses mTLS or private link",
+      "secure_transports": [
+        "mtls",
+        "private_link"
+      ]
+    },
+    "SP-4.1": {
+      "doc": "SEC-POL@v3",
+      "text": "C2 or higher retained by a vendor at most 30 days",
+      "max_days": 30
+    },
+    "SP-4.2": {
+      "doc": "SEC-POL@v3",
+      "text": "C2 or higher encrypted at rest at the vendor"
+    },
+    "AX-EU-1": {
+      "doc": "AX-EU@v1",
+      "text": "EU data subjects: C2 or higher retained at most 14 days; replaces SP-4.1 for that data",
+      "max_days": 14
+    },
+    "DR-1": {
+      "doc": "DRS-01@v1",
+      "text": "C2 or higher about EU data subjects processed only in the EU region"
+    },
+    "NZ-2": {
+      "doc": "NET-STD@v2",
+      "text": "egress from zone Z3 must pass the egress proxy"
+    },
+    "D1": {
+      "doc": "ADR-031@v1",
+      "text": "vendor integrations route through int-gw"
+    },
+    "CF-1": {
+      "doc": "CHG-CAL@2026",
+      "text": "go live inside a freeze window is approved only on condition it moves outside the window"
+    }
+  },
+  "superseded": {
+    "SEC-POL@v2": {
+      "SP-3.1": {
+        "text": "mTLS required only for C3; TLS acceptable for C2",
+        "min_class": "C3"
+      },
+      "SP-4.1": {
+        "text": "C2 or higher retained by a vendor at most 90 days",
+        "max_days": 90
+      }
+    }
+  },
+  "waivers": {
+    "W-07": {
+      "doc": "EXC-REG@2026-10",
+      "rule": "SP-3.1",
+      "vendor": "Parcelytics",
+      "subjects_only": [
+        "US"
+      ],
+      "valid_from": "2026-03-01",
+      "valid_to": "2026-12-31"
+    },
+    "W-12": {
+      "doc": "EXC-REG@2026-10",
+      "rule": "SP-4.1",
+      "vendor": "InsightHub",
+      "max_days": 60,
+      "valid_from": "2026-01-15",
+      "valid_to": "2026-11-30"
+    },
+    "W-15": {
+      "doc": "EXC-REG@2026-10",
+      "rule": "SP-4.2",
+      "vendor": "RouteMind",
+      "valid_from": "2026-06-01",
+      "valid_to": "2027-03-31"
+    }
+  },
+  "freeze_windows": [
+    {
+      "clause": "CF-1",
+      "start": "2026-12-14",
+      "end": "2027-01-04"
+    }
+  ]
+}
