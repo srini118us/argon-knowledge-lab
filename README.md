@@ -68,7 +68,7 @@ Cost check (estimate): Argon long context, 45,556 input tokens at $2 per million
 ## 2. Findings (measured, this experiment only)
 
 1. **At about 47K tokens, long context was the most accurate approach for both models (100%).** Gemini 3.8 Flash matched Gemini 4 Argon's accuracy at about one sixth of the estimated cost ($0.71 vs $4.56). Long context was also the only approach in which the models saw the diagram images themselves (section 3).
-2. **Retrieval, not the model, limited RAG.** Argon and Flash produced identical accuracy in every question category under both RAG variants. The misses came from what the index did or did not return.
+2. **Most RAG misses coincided with missing retrieved evidence, and errors were identical across models.** Argon and Flash produced identical accuracy in every question category under both RAG variants. X07 failed because the required policy document was not retrieved, and D01 and D02 are consistent with the caption chunk not ranking in the top 8 (chunk level retrieval was not validated). D08 is different: both models over inferred from suggestive contract text, a reasoning error rather than a retrieval miss (section 6).
 3. **Diagrams need an explicit path into text RAG.** Text only RAG answered 0 of 8 diagram questions (abstaining on D01 to D07, an incorrect answer on D08). Adding frozen captions raised this to 5 of 8; long context, which sees the images directly, answered 8 of 8. Because the captions were written by Flash, this compares access paths, not the two models' vision.
 4. **Agentic retrieval closed most of the gap to long context** (96% Flash, 98% Argon by the original score; 98% and 100% after the documented C05 review) at a fraction of long context estimated cost, but was the slowest approach (about 20 to 24 s per question).
 5. **Argon cited superseded document versions more often than Flash** in all four approaches (3 vs 0, 3 vs 2, 2 vs 1, 4 vs 1 of 42). On review, all 16 cases cite the current version as well (historical reference); none relies on outdated authority, and none changed an answer's correctness. The difference matters only for how clean the citation trail is.
@@ -109,7 +109,7 @@ So Argon's vision was exercised only in long context. In R2 and A, both models r
 
 These observations cover our requests on 2026-10-13 and 2026-10-14 only. Google documents implicit caching as best effort with no guarantee, and the behavior may differ at other times or volumes.
 
-* **Probes, Argon, identical ~11.4K token prefix, 21 requests:** resending the full prefix each time: 0 of 11 substantial hits. A conversation chain held on the server (`previous_interaction_id`): 2 of 3 hits. Branching every question from one corpus loading interaction: 1 of 7 hits.
+* **Probes, Argon, identical ~11.4K token prefix, 21 requests** (counts taken from the probe console output; the probe result files are not yet in this repository): resending the full prefix each time: 0 of 11 substantial hits. A conversation chain held on the server (`previous_interaction_id`): 2 of 3 hits. Branching every question from one corpus loading interaction: 1 of 7 hits.
 * **Main benchmark, long context (about 52K token prefix, 50 requests each):** Flash reported 1,614,299 cached tokens and its per question cost fell from about $0.035 to about $0.006 on most questions. Argon reported 44,075 cached tokens; its cost stayed at about $0.092 per question except one question ($0.010).
 * Argon's agentic runs reported 256,559 cached tokens, which fits the probe finding that Argon cached within server held conversation chains.
 * No caching savings are claimed beyond what `total_cached_tokens` reports.
@@ -197,7 +197,15 @@ The offline test suite (`tests/`, 25 tests) covers scoring (evidence validity, s
 
 No embedding price is applied, because a published price for `gemini-embedding-2` was not established for this project. `run.py` now prints the estimated embedding tokens separately at the end of each run.
 
-The project owner reported seeing about $25 in billing. **This discrepancy is unresolved.** Possible causes not yet checked: a prepaid credit top-up shown as the charge, other usage on the same billing account, or token types our cost formula undercounts (image tokens, tool use tokens, or thinking tokens if `total_output_tokens` already includes them). Until reconciled against the AI Studio usage page per model, the costs in this README should be read as **estimates from API usage fields**, valid for comparing approaches but not as invoice totals.
+The project owner reported seeing about $25 in billing, against the **about $10.60 total estimate** (not the $8.31 main run alone). **The gap of about $14 is unresolved.**
+
+Checked offline on 2026-10-16:
+* **Token accounting is internally consistent.** On all 400 main run rows, `total_tokens` equals input + output + thinking tokens, so thinking tokens are neither double counted nor missed. Tool use tokens were 0 on every row.
+* **Prices match** the official Gemini API pricing page, which uses one input price for text and images for both models.
+* **No failed requests** appear in any run file.
+* **Unlogged items are small:** embeddings (about 172K tokens) and the 4 caption calls together add well under $1 at any plausible price.
+
+Remaining hypotheses, not yet checked: other usage on the same billing account or API key, a prepaid credit purchase shown as the charge, charges not reported in usage fields, or silent client retries. A billing report for 2026-10-13 and 2026-10-14 broken down by model and SKU would settle it. Until then, the costs in this README are **estimates from API usage fields**, valid for comparing approaches but not as invoice totals.
 
 ## 11. Repository map
 

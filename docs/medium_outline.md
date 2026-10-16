@@ -19,7 +19,7 @@
 ## 3. Chapter 1: Classic RAG
 * 82% for both models (33 of 42 answerable, 8 of 8 abstentions); 0 of 8 diagram questions by design; identical errors across models.
 * X07 missed in every RAG cell because POL-SEC-01@v2 was not retrieved.
-* Lesson: the retriever sets the ceiling, not the model. Recall is reported at document level only.
+* Lesson: most misses coincided with missing retrieved evidence (X07); D08 was a reasoning error on suggestive text. Recall is reported at document level only.
 
 ## 4. Chapter 2: Everything in context
 * 100% for both models, including all diagram questions read directly from images.
@@ -44,13 +44,15 @@
 * Embedding index with 2 vectors for 86 chunks; RAG looked useless in the first pilot.
 * The fix, the rerun of only affected arms, and the rule: check one vector per chunk before trusting a RAG benchmark.
 
-## 9. Decision table for architects (from this data only)
+## 9. Decision table for architects (in this experiment: one corpus of about 47K tokens)
 | Situation in this experiment | What worked best |
 |---|---|
 | Corpus fits comfortably in context, accuracy first | Long context with Gemini 3.8 Flash |
 | Cost or latency first, text answers | RAG with Flash (82 to 92%, about $0.005 per question, about 5 to 6 s) |
 | Diagrams matter but full context is not an option | Captions or agentic retrieval |
 | Audit trail must cite only current versions | Check citations for superseded documents regardless of model (here all were historical, alongside the current version) |
+
+Architectural judgment, not measured here: RAG remains the right default when the corpus exceeds the context window, changes frequently, or needs per document access control.
 
 ## 10. Limits and what comes next
 * One corpus, 50 questions, one run, medium thinking only, 47K tokens: not a long context stress test.
