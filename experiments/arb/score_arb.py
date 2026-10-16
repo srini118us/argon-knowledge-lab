@@ -10,6 +10,11 @@ Per case:
   evidence_valid     fully_correct AND every required citation present
   superseded_reliance  cites SEC-POL@v2 for a clause without citing SEC-POL@v3 for the same clause
   unknown_citations  citations naming a document or clause that does not exist in the pack
+
+Completion is reported separately from correctness (arb.completion_status): a call that timed out,
+lost its connection or spent its whole output budget thinking is a completion failure, not a wrong
+decision. Arm level output gives both end to end figures (all n cases) and accuracy on completed
+responses only. Scoring rules for a completed answer are unchanged.
 """
 from __future__ import annotations
 
@@ -86,7 +91,7 @@ def summarize(rows: list[dict]) -> list[dict]:
     for r in rows:
         s = score_one(key[r["case"]], r.get("answer"), docs)
         s |= {"case": r["case"], "cost": r.get("cost_usd") or 0.0, "latency": r.get("latency_s") or 0.0,
-              "usage": r.get("usage") or {}, "error": r.get("error")}
+              "usage": r.get("usage") or {}, "error": r.get("error"), "status": arb.completion_status(r)}
         groups[(r["model"], r["level"])].append(s)
     out = []
     for (model, level), g in groups.items():
@@ -94,6 +99,12 @@ def summarize(rows: list[dict]) -> list[dict]:
         vp, vr, vf = prf(sum(s["viol_tp"] for s in g), sum(s["viol_fp"] for s in g), sum(s["viol_fn"] for s in g))
         cp, cr, cf = prf(sum(s["cond_tp"] for s in g), sum(s["cond_fp"] for s in g), sum(s["cond_fn"] for s in g))
         full = sum(s["fully_correct"] for s in g)
+        done = [s for s in g if s["status"] == "completed"]
+        used = [s for s in g if s["usage"]]
+        failures = {}
+        for s in g:
+            if s["status"] != "completed":
+                failures[s["status"]] = failures.get(s["status"], 0) + 1
         cost = sum(s["cost"] for s in g)
         out.append({
             "model": model, "level": level, "n": n, "errors": sum(1 for s in g if s["error"]),
@@ -104,11 +115,21 @@ def summarize(rows: list[dict]) -> list[dict]:
             "superseded_reliance": sum(s["superseded_reliance"] for s in g),
             "unknown_citations": sum(s["unknown_citations"] for s in g),
             "cost_usd": round(cost, 4), "cost_per_fully_correct": round(cost / full, 4) if full else None,
-            "median_latency_s": round(median(s["latency"] for s in g), 2),
-            "mean_input_tokens": round(mean(s["usage"].get("total_input_tokens", 0) for s in g)),
+            # Latency over completed responses; token means over calls that returned usage. Failed calls
+            # are excluded so they do not drag means toward zero (corrected 2026-10-16 after audit).
+            "median_latency_s": round(median(s["latency"] for s in done), 2) if done else None,
+            "failed_call_latency_s": sorted(round(s["latency"]) for s in g if s["status"] != "completed"),
+            "mean_input_tokens": round(mean(s["usage"].get("total_input_tokens", 0) for s in used)) if used else None,
             "mean_output_plus_thinking": round(mean(s["usage"].get("total_output_tokens", 0)
-                                                    + s["usage"].get("total_thought_tokens", 0) for s in g)),
+                                                    + s["usage"].get("total_thought_tokens", 0) for s in used)) if used else None,
+            "calls_with_usage": len(used),
             "missed_cases": [s["case"] for s in g if not s["fully_correct"]],
+            "completed": len(done),
+            "completion_failures": failures,
+            "decision_correct_on_completed": f"{sum(s['decision_correct'] for s in done)}/{len(done)}",
+            "fully_correct_on_completed": f"{sum(s['fully_correct'] for s in done)}/{len(done)}",
+            "incorrect_completed_cases": [s["case"] for s in done if not s["fully_correct"]],
+            "incomplete_cases": {s["case"]: s["status"] for s in g if s["status"] != "completed"},
         })
     return sorted(out, key=lambda d: (d["model"], d["level"]))
 

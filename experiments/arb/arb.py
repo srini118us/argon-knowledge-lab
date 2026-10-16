@@ -87,3 +87,28 @@ def prompt(case: dict) -> list[dict]:
     """Pack first (fixed order, cache friendly), proposal last."""
     return [{"type": "text", "text": "Northwind Logistics ARB review pack.\n\n" + pack_text()},
             {"type": "text", "text": render(case)}]
+
+
+COMPLETION_STATUSES = ["completed", "budget_exhausted", "parse_error", "timeout", "connection_error", "api_error"]
+
+
+def completion_status(row: dict) -> str:
+    """Whether a call produced a usable answer, independent of whether the answer is right.
+
+    Works on rows written before the status field existed (2026-10-16 runs) by reading error and usage."""
+    if row.get("status"):
+        return row["status"]
+    err = (row.get("error") or "")
+    if err:
+        low = err.lower()
+        if "deadline" in low or "timeout" in low or "timed out" in low:
+            return "timeout"
+        if "connection" in low or "disconnected" in low:
+            return "connection_error"
+        return "api_error"
+    if row.get("answer"):
+        return "completed"
+    u = row.get("usage") or {}
+    if u.get("total_output_tokens", 0) <= 10 and u.get("total_thought_tokens", 0) > 1000:
+        return "budget_exhausted"
+    return "parse_error"

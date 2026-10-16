@@ -2,39 +2,48 @@
 
 **Question:** when all the evidence is in context, does Gemini 4 Argon make better multistep architecture decisions than Gemini 3.8 Flash, and does high thinking change the answer?
 
-Status: run once on 2026-10-16 (12 test cases x 4 arms). Experiment 1 (repository root) is unchanged.
+Status: **closed.** Run once on 2026-10-16 (12 test cases x 4 arms); no further paid runs are planned. Experiment 1 (repository root) is unchanged. The full write up is in `REPORT.md`.
 
 ## Results (single run, 12 test cases)
 
-Run file: `results/runs/test_20261016_152247.jsonl`. Scored by `score_arb.py`. Costs are usage based estimates.
+Run file: `results/runs/test_20261016_152247.jsonl`, scored by `score_arb.py` (offline test `test_published_experiment2_results_reproduce` reproduces every number below). Costs are usage based estimates, not billed amounts.
 
-| Arm | Fully correct | Decision correct | Evidence valid | Est. cost | Cost per fully correct | Median latency | Output plus thinking per case |
+**Correctness and completion are reported separately.** A call that never returned a usable answer is a completion failure, not a wrong decision.
+
+| Arm | Completed | Fully correct, of completed | Fully correct, end to end | Completion failures | Est. cost* | Median latency, completed | Output plus thinking per call** |
 |---|---|---|---|---|---|---|---|
-| Flash, medium | 12/12 | 12/12 | 12/12 | $0.16 | $0.014 | 18 s | 2,620 |
-| Argon, medium | 12/12 | 12/12 | 12/12 | $0.21 | $0.018 | 11 s | 713 |
-| Argon, high | 11/12 | 11/12 | 11/12 | $1.27 | $0.115 | 67 s | 9,513 |
-| Flash, high | 10/12 | 10/12 | 10/12 | $0.47* | $0.047 | 72 s | 9,563 |
+| Flash, medium | 12/12 | 12/12 | 12/12 | none | $0.163 | 18.0 s | 2,620 |
+| Argon, medium | 12/12 | 12/12 | 12/12 | none | $0.212 | 10.8 s | 713 |
+| Argon, high | 11/12 | 11/11 | 11/12 | T12 budget exhausted | $1.267 | 63.7 s | 9,513 |
+| Flash, high | 10/12 | 10/10 | 10/12 | T05, T12 connection dropped | $0.468 | 61.0 s | 11,476 |
 
-\* Excludes two failed calls that returned no usage; the guard booked them at worst case ($0.25).
+\* Measured usage only. Flash high's two dropped calls returned no usage; the ledger reserves $0.249 for them at worst case.
+\** Mean over calls that returned usage (12, 12, 12 and 10). Argon high includes the T12 call that spent 31,997 tokens thinking.
 
-Every answer that came back was fully correct: exact decision, exact violation and condition sets, all required citations, no reliance on the superseded policy, no citations to clauses that do not exist. All three misses are answers that never arrived:
+Every completed answer in every arm was fully correct: exact decision, exact violation and condition sets, all required citations, no reliance on the superseded policy, and no citations to clauses that do not exist. **There were no incorrect architecture decisions.** The three misses are answers that never arrived:
 
-| Case | Arm | Cause |
-|---|---|---|
-| T05 | Flash, high | Server disconnected after 3,247 s; no answer |
-| T12 | Flash, high | Server disconnected after 272 s; no answer |
-| T12 | Argon, high | Used 31,997 thinking tokens of the 32,000 cap, 3 output tokens; no answer |
+| Case | Arm | Cause | Latency |
+|---|---|---|---|
+| T05 | Flash, high | Server disconnected without a response | 3,247 s |
+| T12 | Flash, high | Server disconnected without a response | 272 s |
+| T12 | Argon, high | 31,997 thinking tokens and 3 output tokens: the 32,000 cap went to thinking | 324 s |
 
 ### Findings (this run only)
 
-1. **No accuracy difference at medium thinking.** Both models were fully correct on all 12 multistep cases. The decision rule set before the run (repeat only if two arms differ by 3 or more cases) does not call for repeated trials.
-2. **Argon at medium was the most token efficient arm:** about 700 output plus thinking tokens per case against Flash's 2,600, with the lowest median latency (11 s against 18 s). Its estimated cost was about 1.3 times Flash's.
-3. **High thinking did not help either model here.** It cost 3 to 6 times more than medium, was 4 to 6 times slower, and produced every miss: Argon exhausted a 32K budget on T12 (and a 16K budget on DEV1 in the pilot), and Flash lost two calls to server disconnects.
-4. **The test hit a ceiling.** Perfect scores at medium mean these 12 cases, though they require 3 to 7 reasoning steps each, were not hard enough to separate the models on accuracy. This is the main limitation of the result.
+1. **No accuracy difference.** Both medium arms were fully correct on all 12 cases, and every completed answer from the high arms was also correct. The rule fixed before the run (repeat only if two arms differ by 3 or more fully correct cases) is not triggered.
+2. **Argon at medium was the most efficient arm here:** about 3.7 times fewer output plus thinking tokens than Flash at medium (713 against 2,620) and the lowest median latency (10.8 s against 18.0 s), at about 1.3 times Flash's estimated cost ($0.212 against $0.163). This is one run on one task; it is not evidence that Argon is generally faster.
+3. **High thinking added cost and latency without improving accuracy, and all completion failures occurred there.** Compared with medium it cost about 3.4 (Flash, per completed call) to 6.0 (Argon) times more and was about 3.4 to 5.9 times slower. One failure was a thinking budget exhausted (Argon T12); the two Flash failures were dropped connections that may reflect service conditions.
+4. **The benchmark hit a ceiling.** See "Why the ceiling means no ranking" below.
 
-### Harness defects found during the run
+### Why the ceiling means no ranking
 
-* **The 10 minute timeout was not enforced.** The T05 call ran 54 minutes before the server dropped it. `HttpOptions.timeout` did not bound a long running Interactions call in this SDK version. A future run needs a hard timeout around each call.
+When the weaker configuration already scores 12 of 12, the test has no room to show that another configuration reasons better. Both models could differ substantially on harder problems and this benchmark would still report a tie. The ceiling was foreseeable: the pilot scored Flash at medium 3 of 3 on the dev cases, and the plan said to harden the dev cases in that situation; that step was skipped (a deviation from the plan, recorded here). The design did force multistep reasoning (each case needs 3 to 7 steps, checked by mutation), but the rules were crisp and the pack short, so the reasoning required was within both models' reach at medium thinking. **The result supports "both are sufficient for this task", not "they reason equally well".**
+
+### Harness defects found during the run, and fixes
+
+* **Timeout not enforced (fixed after the run).** `HttpOptions.timeout` did not bound a long running Interactions call: T05 ran 54 minutes. The runner now enforces a hard deadline itself (`call_with_deadline`, a daemon thread with a join timeout, 600 s). An abandoned call cannot be cancelled on the server and is charged at worst case. Covered by offline tests in `tests/test_harness.py`.
+* **Completion status (added after the run).** Every row now carries `status` (completed, budget_exhausted, parse_error, timeout, connection_error, api_error); rows from 2026-10-16 are classified from their error and usage fields. Scoring reports accuracy on completed responses and end to end separately.
+* **Token and latency means (corrected after the run).** The first scoring pass averaged failed calls as zero tokens and included their latency; means now use calls that returned usage, and median latency uses completed responses. This changed Flash high's figures (9,563 to 11,476 tokens; 72 s to 61 s); correctness figures are unchanged.
 * Earlier pilot attempts used a key from a free tier project (503 and 429 errors, no tokens processed); see Pilot findings.
 
 ## Why this design
@@ -60,7 +69,7 @@ Northwind Logistics' Architecture Review Board decides proposals that send data 
 
 Each case is a short prose proposal, for example:
 
-> The team proposes to send delivery addresses to Parcelytics. The data concerns customers and drivers in the US and the EU. ... Data is transferred over standard HTTPS (server side TLS). Parcelytics will retain the data for 20 days. ... Planned production go live: 2026-11-05.
+> The team proposes to send delivery addresses to Parcelytics. Any people the data is about are in the US and the EU. ... Data is transferred over standard HTTPS (server side TLS). Parcelytics will retain the data for 20 days. ... Planned production go live: 2026-11-05.
 
 The model returns `decision` (approve, approve_with_conditions, reject), `violations` and `conditions` (rule IDs), `citations` (`DOC_ID@VERSION#CLAUSE`) and a short rationale.
 
@@ -108,7 +117,7 @@ Rule IDs are parsed tolerantly (`SEC-POL@v3#SP-3.1` and `SP-3.1` both count). Wa
 
 ## Model configurations
 
-Identical system prompt, pack, proposal text and JSON schema for every arm; pack first and proposal last; `max_output_tokens` 32,000 (includes thinking); no tools; no client retries; 10 minute timeout per call; cases run in case major order so every arm answers the same cases even if the cap stops the run.
+Identical system prompt, pack, proposal text and JSON schema for every arm; pack first and proposal last; `max_output_tokens` 32,000 (includes thinking); no tools; no client retries; a 600 s timeout requested through the SDK (in the test run this was not enforced; the runner now adds its own hard deadline); cases run in case major order so every arm answers the same cases even if the cap stops the run.
 
 | Arm | Model | Thinking |
 |---|---|---|
@@ -120,33 +129,41 @@ Identical system prompt, pack, proposal text and JSON schema for every arm; pack
 ## Pilot findings (2026-10-16, dev cases)
 
 * Earlier attempts failed with 503 and 429 errors from a key on a free tier project; no tokens were processed. The guard booked them at worst case ($0.38 in the ledger, not real spend).
-* With a billed key, 9 of 12 calls completed and every answer parsed; all 9 decisions matched the key. Measured output plus thinking per case: about 1K to 2K at medium; about 13K for Flash at high.
-* Argon at high thinking on DEV1 used 15,997 thinking tokens and 3 output tokens, exactly the 16,000 cap, and returned no answer. The cap is honoured and includes thinking. The guard stopped the run because actual cost beat the worst case by $0.001: the input estimate (characters / 4) was 12% low.
-* Changes after the pilot: cap raised to 32,000 for all arms; input estimate margin 1.25; client retries off with a 10 minute timeout; case major order; an `--arms` filter for single arm reruns.
+* With a billed key, 10 of the 12 planned calls were made before the guard stopped the run; 9 completed and parsed, and all 9 decisions matched the key. Measured output plus thinking per case: 0.5K to 2.6K at medium (Argon 497 to 934, Flash 1,785 to 2,602); 4.2K to 13.1K for Flash at high (mean about 10K).
+* Argon at high thinking on DEV1 used 15,997 thinking tokens and 3 output tokens, exactly the 16,000 cap, and returned no answer. The cap is honoured and includes thinking. The guard stopped the run because actual cost beat the worst case by $0.001: the input estimate (characters / 4) was 4,673 tokens against 5,241 actual, about 11% low.
+* Changes after the pilot: cap raised to 32,000 for all arms; input estimate margin 1.25; client retries off with a 10 minute SDK timeout (later found not to be enforced); case major order; an `--arms` filter for single arm reruns.
+* Pilot scores (fully correct): Flash medium 3/3, Flash high 3/3, Argon medium 3/3; Argon high 0/1 on the 16K cap (budget exhausted), then 1/1 on the 32K rerun.
 
-## Cost estimate and spending guard
+## Cost: estimates, ledger and billing
 
-Preflight after the pilot (introductory prices; output plus thinking assumed at 2,000 tokens per case for medium and 20,000 for high; input estimate with a 1.25 margin):
+All figures are usage based estimates (tokens from API usage fields times published prices). None is a confirmed billed amount.
 
-| Run | Calls | Expected | Worst case |
+**Preflight versus actual (test run):** preflight expected about $4.02 (assuming 20,000 output plus thinking tokens per high call); measured usage was $2.110 because high calls averaged 9,500 to 11,500 tokens.
+
+**Ledger reconciliation** (`results/ledger.jsonl`, 65 entries, $3.275 in total):
+
+| Component | Calls | Amount | Basis |
 |---|---|---|---|
-| Pilot, 3 dev cases (done) | 10 | $0.39 actual | |
-| DEV1 rerun, Argon high only | 1 | about $0.21 | $0.33 |
-| Test, 12 cases | 48 | about $4.02 | $10.95 |
-| **Test, actual** | 48 | **$2.11 measured** plus $0.25 booked for 2 failed calls | |
+| Pilot, billed key (dev cases) | 10 | $0.386 | measured |
+| DEV1 rerun, Argon high | 1 | $0.149 | measured |
+| Test run, completed or budget exhausted | 46 | $2.110 | measured |
+| **Measured total** | **57** | **$2.645** | |
+| Free tier key errors (503, 429) | 6 | $0.381 | worst case reservation; free tier calls are not billed, so most likely $0 |
+| Test run, connection dropped (Flash high T05, T12) | 2 | $0.249 | worst case reservation; actual unknown |
+| **Ledger total** | **65** | **$3.275** | |
 
-**Experiment total in the ledger: $3.27.** Of this, about $2.65 is measured usage (pilot $0.39, DEV1 rerun $0.15, test $2.11) and $0.63 is worst case booking for calls that failed without usage data (free tier errors and two disconnects); their real cost is not known and is most likely lower.
+The 57 measured entries match the run files one to one by interaction ID. Two run files contain no successful calls (`dev_20261016_123402`, `dev_20261016_134538`), and one has a header but no rows (`dev_20261016_135843`, interrupted while the client retried a free tier limit).
 
-The ledger already holds $0.77 ($0.39 real plus $0.38 booked for failed free tier calls). **With a $5 cap the test run is likely to stop before the last cases**; case major order keeps the arms comparable if it does, but a complete run needs a higher cap (about $7) or fewer arms. That is the owner's decision before the test run.
+**Billing:** not yet reconciled. The billing account showed $19.56 for October before this experiment and is shared by four projects. The experiment should add about $2.65 to $2.90 (measured usage plus up to the dropped calls). The check is the October cost per model for the billed project after the run, compared with the measured figures above.
 
-Guard: before every call, the ledger total plus that call's worst case (input estimate plus 16,000 output tokens at the output rate) must stay within `--cap`, or the run stops. The ledger (`results/ledger.jsonl`) persists across runs, so the $5 cap covers pilot and test together. A failed call is charged at its worst case. If any call costs more than its worst case, the run stops and reports that the output cap was not honoured. Every call records its interaction ID and UTC timestamp for billing reconciliation.
+**Guard:** before every call, the ledger total plus that call's worst case (input estimate with a 1.25 margin plus 32,000 output tokens at the output rate) must stay within `--cap`, or the run stops. The ledger persists across runs, so the $5 cap covered pilot and test together; the run finished at $3.275 in the ledger. Calls without usage are charged at worst case.
 
-## Plan
+## Plan and what happened
 
-1. **Pilot** on 3 dev cases (about $0.53). Check that `max_output_tokens` is accepted, outputs parse, and measured token counts. If Flash at medium gets all 3 dev cases fully correct, harden the dev cases only, never the test cases.
-2. **Freeze commit** of pack, cases, key and runner.
-3. **Test run**, 12 cases x 4 arms (about $2.12).
-4. **Repeated trials (separate approval):** 12 cases cannot establish a difference. If any two arms differ by 3 or more fully correct cases, run 2 more trials (about $4.25 more). Otherwise report the tie.
+1. **Pilot** on 3 dev cases: done. Fixes followed (output cap, estimate margin, retries off). The plan's step "if Flash at medium is perfect on dev, harden the dev cases" was **not** carried out; see the ceiling section.
+2. **Freeze commit** of pack, cases, key and runner before the test run: done (commits `5034ca4` and `aebe620`).
+3. **Test run**, 12 cases x 4 arms: done, $2.110 measured.
+4. **Repeated trials:** not triggered (no two arms differ by 3 or more fully correct cases). The experiment is closed.
 
 ## Limitations
 
@@ -155,6 +172,8 @@ Guard: before every call, the ledger total plus that call's worst case (input es
 * The pack is short (about 4.4K tokens), so this tests reasoning, not long context.
 * Ceiling effect: medium arms were perfect, so the experiment cannot rank the models on accuracy.
 * High thinking results depend on the 32K output cap; a larger cap might have let Argon finish T12.
+* Flash high's two dropped connections may reflect service conditions on the day rather than the configuration; one run cannot tell.
+* Different tokenizers: the same prompt counted as about 5,000 input tokens for Flash and 5,244 for Argon.
 
 ## Commands
 

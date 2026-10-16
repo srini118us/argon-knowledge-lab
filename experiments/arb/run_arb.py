@@ -14,9 +14,19 @@ Spending guard (stricter than Experiment 1's):
   * Every call, successful or failed, is appended to results/ledger.jsonl with its interaction ID and
     UTC timestamp, so the ledger can be reconciled against billing. A failed call is logged with a
     worst case cost, not $0.
-  * No retries (client retry attempts 0) and a 10 minute timeout per call: a failed or timed out call
-    is recorded, charged at worst case (the server may still bill a timed out call), and the run
-    continues with the next case.
+  * No retries (client retry attempts 0) and a HARD deadline per call (DEADLINE_S), enforced by the
+    runner itself: the call runs in a daemon thread and the runner stops waiting when the deadline
+    passes. The SDK's HttpOptions.timeout alone did not bound a call in the 2026-10-16 test run (one
+    request ran 54 minutes). An abandoned call cannot be cancelled on the server and may still be
+    billed, so it is charged at worst case.
+  * Every row and ledger entry carries a completion status, kept separate from answer correctness:
+      completed          an answer was returned and parsed (it may still be wrong)
+      budget_exhausted   no parseable answer and the output budget went to thinking
+      parse_error        text returned but not valid JSON
+      timeout            no response within DEADLINE_S
+      connection_error   the connection dropped before a response
+      api_error          any other API error (for example 429 or 503)
+    Ledger entries also record basis: "measured" (usage fields) or "worst_case_reservation".
 """
 from __future__ import annotations
 
@@ -26,6 +36,7 @@ import json
 import os
 import platform
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -48,12 +59,40 @@ MAX_OUTPUT_TOKENS = 32_000   # includes thinking tokens (pilot: Argon high used 
 # medium about 1K to 2K for both models; high about 13K (Flash) to over 16K (Argon).
 ASSUMED_OUTPUT = {"medium": 2_000, "high": 20_000}
 INPUT_MARGIN = 1.25          # pilot: real input 5,241 tokens vs a characters/4 estimate about 12% lower
-TIMEOUT_MS = 600_000         # per call; pilot Argon high took 162 s at 16K
+TIMEOUT_MS = 600_000         # SDK level timeout, kept as a first line of defence (not sufficient alone)
+DEADLINE_S = 600             # runner enforced hard deadline per call
 RETRY_ATTEMPTS = 0           # no client side retries: a failed call is logged and charged at worst case
 
 
 class CapReached(Exception):
     pass
+
+
+class DeadlineExceeded(Exception):
+    pass
+
+
+def call_with_deadline(fn, seconds: float):
+    """Run fn() in a daemon thread and stop waiting after `seconds`. Raises DeadlineExceeded.
+
+    The abandoned thread is not killed (Python cannot), but as a daemon it never blocks process exit,
+    and its eventual result is discarded."""
+    box: dict = {}
+
+    def target():
+        try:
+            box["value"] = fn()
+        except BaseException as e:  # noqa: BLE001
+            box["error"] = e
+
+    th = threading.Thread(target=target, daemon=True)
+    th.start()
+    th.join(seconds)
+    if th.is_alive():
+        raise DeadlineExceeded(f"no response within {seconds} s")
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 def input_tokens_estimate(case: dict) -> int:
@@ -112,10 +151,10 @@ def usage_dict(ix) -> dict:
     return {k: (getattr(u, k, 0) or 0) if u else 0 for k in keys}
 
 
-def run(client, cases, arms, trials, cap, out_path, log=print) -> dict:
+def run(client, cases, arms, trials, cap, out_path, log=print, deadline_s: float = DEADLINE_S) -> dict:
     RESULTS.mkdir(parents=True, exist_ok=True)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    stats = {"calls": 0, "spent": 0.0, "stopped": None}
+    stats = {"calls": 0, "spent": 0.0, "stopped": None, "status": {}}
     with out_path.open("a", encoding="utf-8") as f, LEDGER.open("a", encoding="utf-8") as ledger:
         # Case major order: every arm answers a case before the next case starts, so if the cap stops
         # the run, all arms have answered the same cases and remain comparable.
@@ -133,28 +172,32 @@ def run(client, cases, arms, trials, cap, out_path, log=print) -> dict:
                     row = {"type": "row", "case": case["id"], "split": case["split"], "model": model,
                            "level": level, "trial": trial, "at_utc": at}
                     try:
-                        ix, ans, text = call_model(client, model, level, case)
+                        ix, ans, text = call_with_deadline(
+                            lambda: call_model(client, model, level, case), deadline_s)
                         usage = usage_dict(ix)
                         cost = cost_usd(model, usage)
                         row |= {"interaction_id": getattr(ix, "id", None), "answer": ans,
                                 "raw_text": None if ans else text[:2000], "usage": usage,
                                 "cost_usd": round(cost, 6), "error": None}
-                        charged = cost
+                        charged, basis = cost, "measured"
                     except Exception as e:  # noqa: BLE001
                         row |= {"interaction_id": None, "answer": None, "usage": None, "cost_usd": None,
                                 "error": repr(e)[:500]}
-                        charged = worst   # unknown actual: assume the worst for the cap
+                        charged, basis = worst, "worst_case_reservation"   # unknown actual
                     row["latency_s"] = round(time.time() - t0, 2)
+                    row["status"] = arb.completion_status(row)
+                    stats["status"][row["status"]] = stats["status"].get(row["status"], 0) + 1
                     f.write(json.dumps(row) + "\n")
                     f.flush()
                     ledger.write(json.dumps({"at_utc": at, "experiment": "arb", "model": model, "level": level,
                                              "case": case["id"], "interaction_id": row["interaction_id"],
                                              "usage": row["usage"], "charged_usd": round(charged, 6),
-                                             "worst_case_usd": round(worst, 6), "error": row["error"]}) + "\n")
+                                             "worst_case_usd": round(worst, 6), "basis": basis,
+                                             "status": row["status"], "error": row["error"]}) + "\n")
                     ledger.flush()
                     stats["calls"] += 1
                     stats["spent"] += charged
-                    dec = (row["answer"] or {}).get("decision", "ERROR")
+                    dec = (row["answer"] or {}).get("decision") or row["status"].upper()
                     log(f"{model:17s} {level:6s} {case['id']:5s} {dec:24s} ${charged:.4f}  "
                         f"ledger ${already + charged:.4f}")
                     if row["error"] is None and charged > worst:

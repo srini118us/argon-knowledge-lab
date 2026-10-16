@@ -4,7 +4,9 @@
 
 This lab answers that question for one realistic setting: a new architect asking 50 questions about a synthetic company's architecture documentation (about 47K tokens). It compares four retrieval designs on `gemini-4-argon` and `gemini-3.8-flash`, scores every answer deterministically against a frozen answer key, and reports cost, latency and caching from API usage fields.
 
-Status: main benchmark complete (2026-10-14). No further paid runs have been made since. Results apply to this corpus and these dates only.
+Status: main benchmark complete (2026-10-14). No further paid runs have been made for Experiment 1 since. Results apply to this corpus and these dates only.
+
+**Experiment 2** (Architecture Review Board decisions, all evidence in context, 2026-10-16) is a separate, closed experiment in [`experiments/arb/`](experiments/arb/README.md), with its own report ([`REPORT.md`](experiments/arb/REPORT.md)) and a comparison with this experiment. Nothing below was changed by it.
 
 ## 1. Headline results (main benchmark, valid)
 
