@@ -2,6 +2,8 @@
 
 *Three controlled experiments comparing `gemini-3.8-flash` with `gemini-4-argon` on synthetic enterprise tasks, with a deterministic SQL baseline added in Experiment 3.*
 
+![Enterprise AI Under Test: three controlled experiments comparing gemini-3.8-flash and gemini-4-argon on retrieval, governed reasoning and verified action, with a deterministic SQL baseline in Experiment 3](docs/enterprise-ai-under-test.png)
+
 This repository holds three controlled experiments run on 2026-10-13 to 2026-10-17, shortly after Gemini 4 Argon became generally available. Each compares `gemini-4-argon` with `gemini-3.8-flash` on synthetic but realistic enterprise work, scores results deterministically (against a frozen answer key in Experiments 1 and 2, or an independent grader with a strong non-LLM baseline in Experiment 3), and reports cost, latency and tokens from API usage fields. Experiment 3 evaluates the SQL baseline on all 15 incidents but runs the two models on the 5 development incidents only. Each experiment was run once; results apply to these tasks and dates only.
 
 | | Experiment 1: knowledge retrieval | Experiment 2: architecture review decisions | Experiment 3: autonomous reconciliation |
