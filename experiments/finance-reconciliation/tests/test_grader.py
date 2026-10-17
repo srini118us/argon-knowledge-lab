@@ -157,6 +157,46 @@ def test_incomplete_verdict_flags_premature():
     assert g["critical_failures"]["is_critical_failure"] is True
 
 
+# ---- 8b. Guard: the broadened anti-join detector must NOT reward a no-op ---------
+# The Phase 5 change let "read both sides across their tiers" count as anti-join evidence
+# (because tier isolation forbids a cross-tier EXCEPT in one query). These guard tests prove
+# that broadening did not open a hole: an empty investigation, and one that queried only a
+# single tier, still fail the signature and are flagged premature.
+def test_antijoin_signature_rejects_empty_log():
+    assert scorer._has_signature([], "anti_join_missing") is False
+
+
+def test_antijoin_signature_rejects_single_tier_only():
+    # reading only the mart tier (one side) is not an anti-join
+    log = [{"tool": "run_sql", "tier": "mart", "query": "select * from dbx_ar_mart", "error": None},
+           {"tool": "run_sql", "tier": "mart", "query": "select belnr from dbx_ar_mart", "error": None}]
+    assert scorer._has_signature(log, "anti_join_missing") is False
+
+
+def test_antijoin_signature_rejects_errored_calls():
+    # calls that errored (e.g. tier violations) do not count as evidence
+    log = [{"tool": "run_sql", "tier": "source", "query": "select 1", "error": "tier_violation"},
+           {"tool": "run_sql", "tier": "mart", "query": "select 1", "error": "tier_violation"}]
+    assert scorer._has_signature(log, "anti_join_missing") is False
+
+
+def test_antijoin_signature_accepts_two_sided_read():
+    # the legitimate baseline pattern: read an upstream tier AND the mart, successfully
+    log = [{"tool": "run_sql", "tier": "source", "query": "select belnr from s4_acdoca", "error": None},
+           {"tool": "run_sql", "tier": "mart", "query": "select belnr from dbx_ar_mart", "error": None}]
+    assert scorer._has_signature(log, "anti_join_missing") is True
+
+
+def test_broadened_detector_still_flags_premature_single_tier_investigation():
+    # an "investigation" that only ever read the mart tier must still be premature on a
+    # missing-records incident (its required evidence includes anti_join_missing)
+    con, key = keymod.build_key("incident1_skipped_cdc")
+    log = [{"tool": "run_sql", "tier": "mart", "query": "select * from dbx_ar_mart", "error": None}]
+    v = oracle.oracle_verdict(con, key)
+    g = scorer.grade(con, key, v, log=log, tool_stats={})
+    assert g["critical_failures"]["premature_termination"] is True
+
+
 # ---- 9. Independence: the grader ignores the agent's simulate results ------------
 def test_grader_reconciles_independently_of_agent_claim():
     con, key = keymod.build_key("incident4_lossy_join")

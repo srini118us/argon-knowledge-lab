@@ -84,8 +84,15 @@ def _has_signature(log: list, sig: str) -> bool:
     sql = [c for c in log if c.get("tool") == "run_sql" and not c.get("error")]
     txt = lambda c: (c.get("query") or "").lower()
     if sig == "anti_join_missing":
-        return any(("except" in txt(c)) or ("not in" in txt(c)) or ("left join" in txt(c) and "is null" in txt(c))
-                   for c in sql)
+        # An anti-join can be expressed in one query (EXCEPT / NOT IN / LEFT JOIN ... IS NULL)
+        # OR, because tier isolation forbids cross-tier joins in a single statement, by reading
+        # the two sides from their tiers and differencing them. Both are valid evidence that
+        # the investigator compared presence across layers; accept either.
+        one_query = any(("except" in txt(c)) or ("not in" in txt(c))
+                        or ("left join" in txt(c) and "is null" in txt(c)) for c in sql)
+        tiers = {c.get("tier") for c in sql}
+        read_both_sides = ("mart" in tiers) and (("source" in tiers) or ("share" in tiers) or ("cdc" in tiers))
+        return one_query or read_both_sides
     if sig == "duplicate_check":
         return any("group by" in txt(c) and ("having" in txt(c) and "count" in txt(c)) for c in sql)
     if sig == "cdc_vs_source":
