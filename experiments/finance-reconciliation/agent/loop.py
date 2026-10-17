@@ -84,9 +84,11 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
             break
 
         name, args = fc.get("name"), fc.get("args") or {}
+        call_id = fc.get("call_id") or fc.get("id")
         result = _dispatch(tools, name, args)
-        messages.append({"role": "model", "function_call": {"name": name, "args": args}})
-        messages.append({"role": "tool", "name": name, "content": result})
+        messages.append({"role": "model",
+                         "function_call": {"name": name, "args": args, "call_id": call_id}})
+        messages.append({"role": "tool", "name": name, "call_id": call_id, "content": result})
 
         if name == "submit_investigation_verdict" and not result.get("error"):
             verdict = args

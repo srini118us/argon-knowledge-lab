@@ -64,36 +64,40 @@ class GeminiClient:
         u = getattr(ix, "usage", None)
         return {k: (getattr(u, k, 0) or 0) if u else 0 for k in USAGE_KEYS}
 
+    def _build_input(self, messages) -> list:
+        """Turn the loop's message history into a flat `input` list for a stateless call:
+        the user's text, each prior model function_call, and each tool's function_result."""
+        items = []
+        for m in messages:
+            role = m.get("role")
+            if role == "user":
+                items.append({"type": "text", "text": m["content"]})
+            elif role == "model" and m.get("function_call"):
+                fc = m["function_call"]
+                items.append({"type": "function_call", "name": fc["name"],
+                              "call_id": fc.get("call_id") or fc.get("id"),
+                              "arguments": fc.get("args") or {}})
+            elif role == "tool":
+                items.append({"type": "function_result", "name": m["name"],
+                              "call_id": m.get("call_id"),
+                              "result": [{"type": "text", "text": json.dumps(m["content"], default=str)}]})
+        return items
+
     def create(self, messages, tools, system) -> dict:
-        """One model turn, normalised to the loop's shape. `messages` carries the running
-        transcript the loop maintains; for the real API we instead thread previous_interaction_id
-        and send only the latest input (the first user message, or the tool results)."""
+        """One model turn, normalised to the loop's shape.
+
+        STATELESS design: every call sends the full conversation as `input` (user message,
+        prior model function_calls, and their function_results), with NO
+        previous_interaction_id. This avoids the stateful continuation contract (the server
+        requires an `agent` field on a continuation that the SDK does not surface), and makes
+        each call a self-contained request of the kind that is already proven to work.
+        """
         self._ensure_client()
-        # Determine what to send this turn from the last message the loop appended.
-        last = messages[-1]
-        if last["role"] == "user":
-            send_input = last["content"]
-            prev = None
-            self._prev_id = None
-        elif last["role"] == "tool":
-            # gather the contiguous trailing tool results into function_result inputs
-            send_input = []
-            for m in reversed(messages):
-                if m["role"] != "tool":
-                    break
-                send_input.insert(0, {"type": "function_result", "name": m["name"],
-                                      "call_id": m.get("call_id"),
-                                      "result": [{"type": "text", "text": json.dumps(m["content"])}]})
-            prev = self._prev_id
-        else:
-            send_input = last.get("content", "")
-            prev = self._prev_id
+        send_input = self._build_input(messages)
 
         kw = dict(model=self.model, input=send_input, system_instruction=system,
                   tools=tools, generation_config={"thinking_level": self.level,
                                                   "max_output_tokens": MAX_OUTPUT_TOKENS})
-        if prev:
-            kw["previous_interaction_id"] = prev
 
         t0 = time.time()
         try:
