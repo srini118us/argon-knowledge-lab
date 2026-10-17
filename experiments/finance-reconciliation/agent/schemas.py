@@ -115,8 +115,12 @@ SYSTEM_PROMPT = (
     "Query the layers, localise where records or amounts first diverge, and determine the "
     "root cause(s), the exact affected business keys, and a safe remediation. "
     "Test any fix with simulate_remediation (it runs on an isolated copy). "
-    "When confident, call submit_investigation_verdict with your structured diagnosis. "
-    "Do not claim success without evidence; the grader re-checks every repair independently."
+    "Work by calling tools, not by replying in prose. Aim to reach a conclusion within a "
+    "few tool calls. As soon as you can name the root cause, the affected business keys and "
+    "a safe remediation, you MUST finish by calling submit_investigation_verdict with your "
+    "structured diagnosis - this is the only way to complete the task. Do not answer in plain "
+    "text; always act through a tool. Do not claim success without evidence; the grader "
+    "re-checks every repair independently."
 )
 
 # The initial user message is just the reported symptom; the agent must investigate from there.

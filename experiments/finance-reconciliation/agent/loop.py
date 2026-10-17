@@ -61,6 +61,16 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
     status = "incomplete"      # until a verdict is submitted or a terminal failure occurs
     turns = 0
 
+    nudged = False   # whether we've already told the model to submit its verdict
+
+    def _nudge():
+        """Ask the model, once, to finalise by calling submit_investigation_verdict now."""
+        messages.append({"role": "user", "content":
+            "You have gathered enough evidence. Do not reply in prose. Call the "
+            "submit_investigation_verdict tool now with your final structured diagnosis: "
+            "root_causes (incident_class + layer), affected_business_keys, evidence, "
+            "proposed_remediations, and verification."})
+
     for turns in range(1, max_turns + 1):
         resp = client.create(messages=messages, tools=tool_schema,
                              system=schemas.SYSTEM_PROMPT)
@@ -72,14 +82,16 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
         if st in ("timeout", "error"):
             status = st
             break
-        if st == "incomplete":
-            # model produced no usable action this turn (e.g. budget exhausted on thinking)
-            status = "incomplete"
-            break
 
         fc = resp.get("function_call")
-        if not fc:
-            # no function call and no verdict: treat as a stalled turn, stop
+
+        # Model took no tool action this turn (gave prose, or spent its budget thinking).
+        # Nudge it ONCE to submit the verdict; only stop if it still won't.
+        if st == "incomplete" or not fc:
+            if not nudged:
+                nudged = True
+                _nudge()
+                continue
             status = "incomplete"
             break
 
@@ -94,6 +106,11 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
             verdict = args
             status = "completed"
             break
+
+        # If the model has spent most of its turns still investigating, nudge it once to wrap up.
+        if not nudged and turns >= max_turns - 3:
+            nudged = True
+            _nudge()
 
     return {
         "verdict": verdict,

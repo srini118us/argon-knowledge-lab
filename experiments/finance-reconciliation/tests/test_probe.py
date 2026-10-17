@@ -36,8 +36,12 @@ def test_shared_schema_has_five_tools():
 
 
 def test_schema_and_prompt_leak_no_ground_truth():
-    blob = str(schemas.FUNCTION_DECLARATIONS) + schemas.SYSTEM_PROMPT
-    for forbidden in ["is_anomaly", "4910000", "CGONE", "defect", "answer", "injector"]:
+    blob = (str(schemas.FUNCTION_DECLARATIONS) + schemas.SYSTEM_PROMPT).lower()
+    # ground-truth leak patterns: defect labels, planted keys, answer-key column names.
+    # (The bare word "answer" in an instruction like "do not answer in prose" is fine;
+    # we look for answer-KEY leaks, not the English word.)
+    for forbidden in ["is_anomaly", "4910000", "cgone", "answer_key", "answerkey",
+                      "injector", "planted", "ground_truth", "expected_discrepancy"]:
         assert forbidden not in blob
 
 
