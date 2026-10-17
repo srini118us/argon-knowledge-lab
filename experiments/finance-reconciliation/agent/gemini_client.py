@@ -64,40 +64,43 @@ class GeminiClient:
         u = getattr(ix, "usage", None)
         return {k: (getattr(u, k, 0) or 0) if u else 0 for k in USAGE_KEYS}
 
-    def _build_input(self, messages) -> list:
-        """Turn the loop's message history into a flat `input` list for a stateless call:
-        the user's text, each prior model function_call, and each tool's function_result."""
-        items = []
-        for m in messages:
-            role = m.get("role")
-            if role == "user":
-                items.append({"type": "text", "text": m["content"]})
-            elif role == "model" and m.get("function_call"):
-                fc = m["function_call"]
-                items.append({"type": "function_call", "name": fc["name"],
-                              "call_id": fc.get("call_id") or fc.get("id"),
-                              "arguments": fc.get("args") or {}})
-            elif role == "tool":
-                items.append({"type": "function_result", "name": m["name"],
-                              "call_id": m.get("call_id"),
-                              "result": [{"type": "text", "text": json.dumps(m["content"], default=str)}]})
-        return items
-
     def create(self, messages, tools, system) -> dict:
-        """One model turn, normalised to the loop's shape.
+        """One model turn, following the documented Interactions API function-calling shape
+        (ai.google.dev/gemini-api/docs/interactions/function-calling):
 
-        STATELESS design: every call sends the full conversation as `input` (user message,
-        prior model function_calls, and their function_results), with NO
-        previous_interaction_id. This avoids the stateful continuation contract (the server
-        requires an `agent` field on a continuation that the SDK does not surface), and makes
-        each call a self-contained request of the kind that is already proven to work.
+        * First turn: input is the user's text; no previous_interaction_id.
+        * Follow-up turns: input is ONLY the new function_result item(s); the prior turn is
+          carried by previous_interaction_id. A function_call is a RESPONSE step, never an
+          input item -- including it in input routes to the agent endpoint and fails.
+        * tools, system_instruction and generation_config are re-sent on every call, since
+          previous_interaction_id does not carry them over.
         """
         self._ensure_client()
-        send_input = self._build_input(messages)
+        last = messages[-1]
+        if last["role"] == "user":
+            send_input = last["content"]
+            prev = None
+        elif last["role"] == "tool":
+            # send only the contiguous trailing tool results as function_result items
+            results = []
+            for m in reversed(messages):
+                if m["role"] != "tool":
+                    break
+                results.insert(0, {"type": "function_result", "name": m["name"],
+                                   "call_id": m.get("call_id"),
+                                   "result": [{"type": "text",
+                                               "text": json.dumps(m["content"], default=str)}]})
+            send_input = results
+            prev = self._prev_id
+        else:
+            send_input = last.get("content", "")
+            prev = self._prev_id
 
         kw = dict(model=self.model, input=send_input, system_instruction=system,
                   tools=tools, generation_config={"thinking_level": self.level,
                                                   "max_output_tokens": MAX_OUTPUT_TOKENS})
+        if prev:
+            kw["previous_interaction_id"] = prev
 
         t0 = time.time()
         try:
