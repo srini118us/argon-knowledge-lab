@@ -165,7 +165,14 @@ def run(mode: str, cap: float, go: bool) -> int:
                        "score": g["score"], "breakdown": g["breakdown"],
                        "critical": g["critical_failures"], "error_category": g["error_category"],
                        "usage": result["usage"], "cost_usd": round(cost, 6),
-                       "latency_s": round(time.time() - t0, 2)}
+                       "latency_s": round(time.time() - t0, 2),
+                       # Save what the model actually submitted and did, so scores are
+                       # interpretable and the run can be re-scored offline without new calls.
+                       "verdict": result.get("verdict"),
+                       "tool_log": result.get("log"),
+                       "grader_detail": {"affected_keys_detail": g.get("affected_keys_detail"),
+                                         "evidence_detail": g.get("evidence_detail"),
+                                         "verification_detail": g.get("verification_detail")}}
                 f.write(json.dumps(row) + "\n"); f.flush()
                 ledger.write(json.dumps({"at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                                          "experiment": "finance-reconciliation", "mode": mode,
