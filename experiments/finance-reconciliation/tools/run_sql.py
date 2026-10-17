@@ -62,10 +62,14 @@ def _strip_comments_and_strings(sql: str) -> str:
 
 
 def _referenced_relations(sql_nostr: str) -> set[str]:
-    """Relations named after FROM / JOIN. Lowercased identifiers only."""
+    """Relations named after FROM / JOIN. Lowercased, with double-quotes stripped so a
+    quoted identifier like "dbx_ar_mart" cannot evade tier matching."""
     rels = set()
-    for m in re.finditer(r"\b(from|join)\s+([A-Za-z_][A-Za-z0-9_\.]*)", sql_nostr, re.IGNORECASE):
-        rel = m.group(2).split(".")[-1].lower()   # strip any schema qualifier
+    # match an optionally double-quoted, optionally schema-qualified identifier
+    pat = r'\b(from|join)\s+("?[A-Za-z_][A-Za-z0-9_]*"?(?:\.\s*"?[A-Za-z_][A-Za-z0-9_]*"?)*)'
+    for m in re.finditer(pat, sql_nostr, re.IGNORECASE):
+        raw = m.group(2).replace('"', "").replace(" ", "")
+        rel = raw.split(".")[-1].lower()   # strip any schema qualifier and quotes
         rels.add(rel)
     return rels
 

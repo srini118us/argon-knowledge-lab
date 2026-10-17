@@ -210,9 +210,38 @@ def test_verdict_rejects_bad_class_or_layer():
 
 # ---- isolation (DESIGN.md 6.1.1) ------------------------------------------------
 
-def test_agent_cannot_import_key_or_grader():
-    # grade/ and spec.key do not exist as importable modules in the agent path
-    isolation.assert_no_key_modules()   # must not raise
+def test_isolation_guard_detects_grade_on_path(tmp_path):
+    # the guard must RAISE when the agent search path exposes grade/ or spec/
+    import os
+    (tmp_path / "grade").mkdir()
+    (tmp_path / "grade" / "__init__.py").write_text("")
+    try:
+        isolation.assert_key_dirs_off_path([str(tmp_path)])
+        assert False, "guard should have detected grade/ on the path"
+    except RuntimeError as e:
+        assert "grade" in str(e)
+
+
+def test_isolation_guard_passes_for_clean_path(tmp_path):
+    # an isolated path with only sim/ and tools/ (no grade/, no spec/) passes
+    import os
+    for d in ("sim", "tools"):
+        (tmp_path / d).mkdir()
+        (tmp_path / d / "__init__.py").write_text("")
+    isolation.assert_key_dirs_off_path([str(tmp_path)])   # must not raise
+
+
+def test_monorepo_root_is_correctly_flagged():
+    # HONEST CHECK: the experiment root DOES expose grade/, so the guard flags it. This
+    # documents that the launcher must use an isolated path, not the monorepo root.
+    import os
+    root = str(Path(__file__).resolve().parent.parent)
+    if os.path.isdir(os.path.join(root, "grade")):
+        try:
+            isolation.assert_key_dirs_off_path([root])
+            assert False, "monorepo root exposes grade/; guard should flag it"
+        except RuntimeError:
+            pass   # expected: this is why the launcher must isolate the path
 
 
 def test_world_has_no_defect_label_columns():
