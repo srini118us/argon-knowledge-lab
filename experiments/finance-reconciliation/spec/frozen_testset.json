@@ -1,0 +1,358 @@
+{
+ "benchmark": "finance-reconciliation",
+ "benchmark_sha256": "7b797b2c7f6c1f4ba856cceacf329c49ca4661bb77e6e55dc9428e570c18aed6",
+ "file_hashes": {
+  "grade/key.py": "f7265c5990ae76383750d2df1bfcc1d8c7710f0dc745aa6ad694a54bcaed9743",
+  "grade/scorer.py": "8acc9ecd9fdf1c4e3667fa6083ece80fa64b6c8d215b352275ba6f066a2d8667",
+  "sim/injectors.py": "69f0cd49e75dea59dcd48c592e2b6c6987e0fa71d218444ca3643873a51796a6",
+  "sim/reconcile.py": "3bff841225bd050f571a8e623c89340e997c402cfc21c51cab276108e3eea8f9",
+  "sim/schema.py": "34191b09edfa93fb96a7aa1acedd38b4f89756b72d07285b7b5d87a916a9d506",
+  "sim/world.py": "a4528b20bd5acd5d4dd69e8b5a6dec0ddc88569f2a55408643439de05a9eef68",
+  "spec/testset.py": "6ea38039f44076c24acb4512695a180c075a2c76cae8af3f14e48ef1e5464cbe",
+  "tools/run_sql.py": "14f76172d5884c8783592cd1139c9e1cc85462f950919ab0ad91285b13de406c",
+  "tools/tools.py": "ee93e81d7416791ec1c54666cb63aa00814fca538fe1186c1a27c1b196780470"
+ },
+ "ground_truth": [
+  {
+   "affected_keys": {
+    "missing": [
+     "100/1000/2026/4910000100/000001/0L",
+     "100/1000/2026/4910000101/000001/0L",
+     "100/1000/2026/4910000102/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 0,
+    "missing": 3
+   },
+   "discrepancy": 270000.0,
+   "expected_net": 270000.0,
+   "id": "T01",
+   "incident_class": "missing_cdc_delta",
+   "params": {
+    "amount": 270000,
+    "base": 4910000100,
+    "n": 3
+   },
+   "root_cause_layers": [
+    "L1"
+   ],
+   "safe_remediations": [
+    "reextract_batch"
+   ],
+   "seed": 20270101
+  },
+  {
+   "affected_keys": {
+    "missing": [
+     "100/1000/2026/4910001100/000001/0L",
+     "100/1000/2026/4910001101/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 0,
+    "missing": 2
+   },
+   "discrepancy": 88000.0,
+   "expected_net": 88000.0,
+   "id": "T02",
+   "incident_class": "missing_cdc_delta",
+   "params": {
+    "amount": 88000,
+    "base": 4910001100,
+    "n": 2
+   },
+   "root_cause_layers": [
+    "L1"
+   ],
+   "safe_remediations": [
+    "reextract_batch"
+   ],
+   "seed": 20270102
+  },
+  {
+   "affected_keys": {
+    "duplicated": [
+     "100/1000/2026/4920000100/000001/0L",
+     "100/1000/2026/4920000101/000001/0L",
+     "100/1000/2026/4920000102/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 3,
+    "missing": 0
+   },
+   "discrepancy": -210000.0,
+   "expected_net": -210000.0,
+   "id": "T03",
+   "incident_class": "duplicate_replay",
+   "params": {
+    "amount": 210000,
+    "base": 4920000100,
+    "n": 3
+   },
+   "root_cause_layers": [
+    "L4"
+   ],
+   "safe_remediations": [
+    "dedupe_target",
+    "reload_idempotent"
+   ],
+   "seed": 20270103
+  },
+  {
+   "affected_keys": {
+    "duplicated": [
+     "100/1000/2026/4920001100/000001/0L",
+     "100/1000/2026/4920001101/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 2,
+    "missing": 0
+   },
+   "discrepancy": -60000.0,
+   "expected_net": -60000.0,
+   "id": "T04",
+   "incident_class": "duplicate_replay",
+   "params": {
+    "amount": 60000,
+    "base": 4920001100,
+    "n": 2
+   },
+   "root_cause_layers": [
+    "L4"
+   ],
+   "safe_remediations": [
+    "dedupe_target",
+    "reload_idempotent"
+   ],
+   "seed": 20270104
+  },
+  {
+   "affected_keys": {
+    "amount_mismatch": [
+     "100/1000/2026/4800000057/000001/0L",
+     "100/1000/2026/4800000058/000001/0L",
+     "100/1000/2026/4800000059/000001/0L",
+     "100/1000/2026/4800000060/000001/0L",
+     "100/1000/2026/4800000061/000001/0L",
+     "100/1000/2026/4800000062/000001/0L",
+     "100/1000/2026/4800000063/000001/0L",
+     "100/1000/2026/4800000064/000001/0L",
+     "100/1000/2026/4800000065/000001/0L",
+     "100/1000/2026/4800000066/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 10,
+    "duplicated": 0,
+    "missing": 0
+   },
+   "discrepancy": 8398.59,
+   "expected_net": null,
+   "id": "T05",
+   "incident_class": "currency_basis",
+   "params": {},
+   "root_cause_layers": [
+    "L2"
+   ],
+   "safe_remediations": [
+    "fix_transform"
+   ],
+   "seed": 20270105
+  },
+  {
+   "affected_keys": {
+    "amount_mismatch": [
+     "100/1000/2026/4800000057/000001/0L",
+     "100/1000/2026/4800000058/000001/0L",
+     "100/1000/2026/4800000059/000001/0L",
+     "100/1000/2026/4800000060/000001/0L",
+     "100/1000/2026/4800000061/000001/0L",
+     "100/1000/2026/4800000062/000001/0L",
+     "100/1000/2026/4800000063/000001/0L",
+     "100/1000/2026/4800000064/000001/0L",
+     "100/1000/2026/4800000065/000001/0L",
+     "100/1000/2026/4800000066/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 10,
+    "duplicated": 0,
+    "missing": 0
+   },
+   "discrepancy": 10090.87,
+   "expected_net": null,
+   "id": "T06",
+   "incident_class": "currency_basis",
+   "params": {},
+   "root_cause_layers": [
+    "L2"
+   ],
+   "safe_remediations": [
+    "fix_transform"
+   ],
+   "seed": 20270106
+  },
+  {
+   "affected_keys": {
+    "missing": [
+     "100/1000/2026/4940000100/000001/0L",
+     "100/1000/2026/4940000101/000001/0L",
+     "100/1000/2026/4940000102/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 0,
+    "missing": 3
+   },
+   "discrepancy": 174000.0,
+   "expected_net": 174000.0,
+   "id": "T07",
+   "incident_class": "lossy_join",
+   "params": {
+    "amount": 174000,
+    "base": 4940000100,
+    "n": 3
+   },
+   "root_cause_layers": [
+    "L4"
+   ],
+   "safe_remediations": [
+    "refresh_customer_snapshot"
+   ],
+   "seed": 20270107
+  },
+  {
+   "affected_keys": {
+    "missing": [
+     "100/1000/2026/4940001100/000001/0L",
+     "100/1000/2026/4940001101/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 0,
+    "missing": 2
+   },
+   "discrepancy": 52000.0,
+   "expected_net": 52000.0,
+   "id": "T08",
+   "incident_class": "lossy_join",
+   "params": {
+    "amount": 52000,
+    "base": 4940001100,
+    "n": 2
+   },
+   "root_cause_layers": [
+    "L4"
+   ],
+   "safe_remediations": [
+    "refresh_customer_snapshot"
+   ],
+   "seed": 20270108
+  },
+  {
+   "affected_keys": {
+    "duplicated": [
+     "100/1000/2026/4950000200/000001/0L",
+     "100/1000/2026/4950000201/000001/0L"
+    ],
+    "missing": [
+     "100/1000/2026/4950000100/000001/0L",
+     "100/1000/2026/4950000101/000001/0L",
+     "100/1000/2026/4950000102/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 2,
+    "missing": 3
+   },
+   "discrepancy": 380000.0,
+   "expected_net": 380000.0,
+   "id": "T09",
+   "incident_class": "compound",
+   "params": {
+    "base": 4950000100,
+    "dup": 220000,
+    "missing": 600000,
+    "n_dup": 2,
+    "n_missing": 3
+   },
+   "root_cause_layers": [
+    "L4",
+    "L4"
+   ],
+   "safe_remediations": [
+    "backfill_missing",
+    "dedupe_target"
+   ],
+   "seed": 20270109
+  },
+  {
+   "affected_keys": {
+    "duplicated": [
+     "100/1000/2026/4950001200/000001/0L",
+     "100/1000/2026/4950001201/000001/0L",
+     "100/1000/2026/4950001202/000001/0L"
+    ],
+    "missing": [
+     "100/1000/2026/4950001100/000001/0L",
+     "100/1000/2026/4950001101/000001/0L",
+     "100/1000/2026/4950001102/000001/0L",
+     "100/1000/2026/4950001103/000001/0L"
+    ]
+   },
+   "counts": {
+    "amount_mismatch": 0,
+    "duplicated": 3,
+    "missing": 4
+   },
+   "discrepancy": 270000.0,
+   "expected_net": 270000.0,
+   "id": "T10",
+   "incident_class": "compound",
+   "params": {
+    "base": 4950001100,
+    "dup": 90000,
+    "missing": 360000,
+    "n_dup": 3,
+    "n_missing": 4
+   },
+   "root_cause_layers": [
+    "L4",
+    "L4"
+   ],
+   "safe_remediations": [
+    "backfill_missing",
+    "dedupe_target"
+   ],
+   "seed": 20270110
+  }
+ ],
+ "n_cases": 10,
+ "scoring_rules": {
+  "critical_failures": [
+   "unsafe_attempts",
+   "overclaim",
+   "premature_termination"
+  ],
+  "dimensions": {
+   "affected_keys": 20,
+   "evidence": 15,
+   "remediation": 15,
+   "root_cause": 30,
+   "verification": 20
+  },
+  "tolerance": 0.01,
+  "verification": "grader applies proposed remediations to its own overlay; closes discrepancy within 0.01 AND no residual invariant breach"
+ },
+ "split": "test"
+}

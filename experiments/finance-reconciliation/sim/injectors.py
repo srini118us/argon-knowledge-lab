@@ -71,17 +71,17 @@ def _mart_insert(con, bk, amount, *, kunnr="C1500", budat=date(2026, 9, 15),
 # --------------------------------------------------------------------------------
 # Incident 1: skipped CDC batch (watermark above the lines, yet no capture row)
 # --------------------------------------------------------------------------------
-def inject_skipped_cdc(con, amount=450_000, n=3) -> dict:
+def inject_skipped_cdc(con, amount=450_000, n=3, base=4810000100) -> dict:
     per = amount // n
     skipped = []
     for i in range(n):
-        bk = _insert_source(con, 4810000100 + i, per,
+        bk = _insert_source(con, base + i, per,
                             cpudt=datetime(2026, 9, 20, 8, 0))  # cpudt <= watermark
         skipped.append(bk)
     # The lines are committed and due (cpudt <= watermark) but were NOT captured: no cdc row,
     # so they never reach the share or the mart. Watermark already sits at WM (>= their cpudt).
     # Benign distractor: a line with cpudt AFTER the watermark (normal lag; correctly pending).
-    _insert_source(con, 4810000900, 99_000, cpudt=datetime(2026, 10, 2, 12, 0))
+    _insert_source(con, base + 800, 99_000, cpudt=datetime(2026, 10, 2, 12, 0))
     return {
         "incident": "missing_cdc_delta",
         "root_cause_layer": ["L1"],
@@ -95,11 +95,11 @@ def inject_skipped_cdc(con, amount=450_000, n=3) -> dict:
 # --------------------------------------------------------------------------------
 # Incident 2: duplicate downstream replay (non-idempotent load)
 # --------------------------------------------------------------------------------
-def inject_duplicate_replay(con, amount=140_000, n=2) -> dict:
+def inject_duplicate_replay(con, amount=140_000, n=2, base=4820000100) -> dict:
     per = amount // n
     dups = []
     for i in range(n):
-        bk = _insert_source(con, 4820000100 + i, per)
+        bk = _insert_source(con, base + i, per)
         _capture(con, bk, per)                       # correctly captured and shared
         _mart_insert(con, bk, per)                   # legitimate single copy
         _mart_insert(con, bk, per)                   # the replayed duplicate (defect)
@@ -158,12 +158,12 @@ def inject_currency_basis(con) -> dict:
 # --------------------------------------------------------------------------------
 # Incident 4: silent loss from a downstream inner join (rows present at share, dropped at mart)
 # --------------------------------------------------------------------------------
-def inject_lossy_join(con, amount=120_000, n=2) -> dict:
+def inject_lossy_join(con, amount=120_000, n=2, base=4840000100) -> dict:
     per = amount // n
     dropped = []
     for i in range(n):
-        bk = _insert_source(con, 4840000100 + i, per, kunnr=f"CMISSING{i}")
-        _capture(con, bk, per, kunnr=f"CMISSING{i}")   # present at share
+        bk = _insert_source(con, base + i, per, kunnr=f"CMISSING{base}{i}")
+        _capture(con, bk, per, kunnr=f"CMISSING{base}{i}")   # present at share
         dropped.append(bk)
         # NOTE: customer CMISSINGi deliberately absent from s4_customer snapshot ->
         # the inner join in the mart load drops these rows. Mart never gets them.
@@ -174,7 +174,10 @@ def inject_lossy_join(con, amount=120_000, n=2) -> dict:
         "root_cause_layer": ["L4"],
         "affected_keys": {"missing": dropped},
         "expected_discrepancy": float(amount),   # source exceeds target
-        "safe_remediations": ["fix_transform", "refresh_customer_snapshot"],
+        # Only remediations that actually reconcile the loss belong here. refresh_customer_snapshot
+        # re-includes the dropped customers and reloads; fix_transform alone does NOT recover rows
+        # the inner join dropped (verified in Phase 6), so it is not a safe remediation here.
+        "safe_remediations": ["refresh_customer_snapshot"],
         "distinct_from_incident1": "present at share/L2, absent only at mart",
     }
 
@@ -182,20 +185,21 @@ def inject_lossy_join(con, amount=120_000, n=2) -> dict:
 # --------------------------------------------------------------------------------
 # Incident 5: compound, two offsetting L4 defects, net +310K
 # --------------------------------------------------------------------------------
-def inject_compound(con, missing=450_000, dup=140_000) -> dict:
-    # Defect A: +450K of positive invoices present at source+share but missing from the mart.
+def inject_compound(con, missing=450_000, dup=140_000, n_missing=3, n_dup=2,
+                    base=4850000100) -> dict:
+    # Defect A: positive invoices present at source+share but missing from the mart.
     a_keys = []
-    for i in range(3):
-        bk = _insert_source(con, 4850000100 + i, missing // 3, kunnr=f"CGONE{i}")
-        _capture(con, bk, missing // 3, kunnr=f"CGONE{i}")   # at share, not loaded to mart
+    for i in range(n_missing):
+        bk = _insert_source(con, base + i, missing // n_missing, kunnr=f"CGONE{base}{i}")
+        _capture(con, bk, missing // n_missing, kunnr=f"CGONE{base}{i}")  # at share, not at mart
         a_keys.append(bk)
-    # Defect B: +140K of positive invoices duplicated in the mart.
+    # Defect B: positive invoices duplicated in the mart.
     b_keys = []
-    for i in range(2):
-        bk = _insert_source(con, 4850000200 + i, dup // 2)
-        _capture(con, bk, dup // 2)
-        _mart_insert(con, bk, dup // 2)      # legit single copy
-        _mart_insert(con, bk, dup // 2)      # duplicate
+    for i in range(n_dup):
+        bk = _insert_source(con, base + 100 + i, dup // n_dup)
+        _capture(con, bk, dup // n_dup)
+        _mart_insert(con, bk, dup // n_dup)      # legit single copy
+        _mart_insert(con, bk, dup // n_dup)      # duplicate
         b_keys.append(bk)
     con.execute("UPDATE pipeline_config SET idempotent=false WHERE pipeline_id='mart_load'")
     return {
@@ -217,8 +221,12 @@ INJECTORS = {
 }
 
 
-def build_incident(name: str, seed: int = 20260901):
-    """Build a clean world and inject the named incident. Returns (con, truth)."""
+def build_incident(name: str, seed: int = 20260901, **inject_kwargs):
+    """Build a clean world and inject the named incident. Returns (con, truth).
+
+    inject_kwargs are passed to the injector (amount, n, base, ...), letting the test-set
+    generator vary magnitudes, counts and key ranges without changing dev defaults.
+    """
     con = world.build_clean(seed)
-    truth = INJECTORS[name](con)
+    truth = INJECTORS[name](con, **inject_kwargs)
     return con, truth
