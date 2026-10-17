@@ -1,0 +1,104 @@
+"""Multistep tool loop for the model arms (Phase 7, mechanics only).
+
+Drives a function-calling model through an investigation: the model emits a function call, the
+loop dispatches it to the bounded Tools, feeds the result back, and repeats until the model calls
+submit_investigation_verdict or a limit is hit. Model-agnostic: it takes a `client` object with a
+single `.create(...)` method returning a response in a normalised shape, so Flash, Argon, and a
+mock all drive the same loop.
+
+This module makes NO API calls itself. Phase 8 passes a real Gemini-backed client; Phase 7 passes
+the MockClient in agent/mock_client.py to validate the loop offline.
+
+Normalised response shape the client must return (so the loop is model-agnostic):
+  {
+    "function_call": {"name": str, "args": dict} | None,   # the tool the model wants to call
+    "verdict": dict | None,                                  # set when name == submit_...verdict
+    "usage": {"input_tokens": int, "output_tokens": int, "thinking_tokens": int},
+    "status": "ok" | "timeout" | "incomplete" | "error",
+    "error": str | None,
+  }
+"""
+from __future__ import annotations
+
+from tools.tools import Tools
+
+from . import schemas
+
+MAX_TURNS = 15               # per-case cap on model turns (DESIGN.md 9.3)
+
+
+def _dispatch(tools: Tools, name: str, args: dict):
+    """Route a function call to the bounded tools. Unknown names return an error dict
+    (the model can recover), never an exception."""
+    if name == "run_sql":
+        return tools.run_sql(args.get("tier"), args.get("query"), offset=args.get("offset", 0))
+    if name == "get_pipeline_metadata":
+        return tools.get_pipeline_metadata(args.get("pipeline_id"))
+    if name == "inspect_transformation_logic":
+        return tools.inspect_transformation_logic(args.get("view_name"))
+    if name == "simulate_remediation":
+        return tools.simulate_remediation(args.get("action_type"), args.get("parameters"))
+    if name == "submit_investigation_verdict":
+        return tools.submit_investigation_verdict(args)
+    return {"error": "unknown_tool", "detail": f"no tool named {name}"}
+
+
+def run_investigation(con, client, *, max_turns: int = MAX_TURNS) -> dict:
+    """Run one investigation to a verdict or a limit. Returns a result dict with the verdict,
+    the tool log, usage totals, completion status, and turn count.
+
+    `client.create(messages, tools, system)` must return the normalised shape above.
+    """
+    tools = Tools(con)
+    messages = [{"role": "user", "content": schemas.initial_user_message(_reported(con))}]
+    usage = {"input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0}
+    verdict = None
+    status = "incomplete"      # until a verdict is submitted or a terminal failure occurs
+    turns = 0
+
+    for turns in range(1, max_turns + 1):
+        resp = client.create(messages=messages, tools=schemas.FUNCTION_DECLARATIONS,
+                             system=schemas.SYSTEM_PROMPT)
+        u = resp.get("usage") or {}
+        for k in usage:
+            usage[k] += int(u.get(k, 0) or 0)
+
+        st = resp.get("status", "ok")
+        if st in ("timeout", "error"):
+            status = st
+            break
+        if st == "incomplete":
+            # model produced no usable action this turn (e.g. budget exhausted on thinking)
+            status = "incomplete"
+            break
+
+        fc = resp.get("function_call")
+        if not fc:
+            # no function call and no verdict: treat as a stalled turn, stop
+            status = "incomplete"
+            break
+
+        name, args = fc.get("name"), fc.get("args") or {}
+        result = _dispatch(tools, name, args)
+        messages.append({"role": "model", "function_call": {"name": name, "args": args}})
+        messages.append({"role": "tool", "name": name, "content": result})
+
+        if name == "submit_investigation_verdict" and not result.get("error"):
+            verdict = args
+            status = "completed"
+            break
+
+    return {
+        "verdict": verdict,
+        "log": tools.log,
+        "tool_stats": tools.stats(),
+        "usage": usage,
+        "status": status,
+        "turns": turns,
+    }
+
+
+def _reported(con) -> float:
+    """The symptom shown to the agent: the reported discrepancy (no ground truth)."""
+    from sim import reconcile
+    return float(reconcile.discrepancy(con))
