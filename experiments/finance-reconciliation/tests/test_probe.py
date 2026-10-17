@@ -124,3 +124,19 @@ def test_cost_estimate_is_conservative_and_bounded():
     # sanity: estimates are positive, Argon costs more than Flash, within a small budget
     assert pilot["per_case_usd"]["gemini-4-argon"] > pilot["per_case_usd"]["gemini-3.8-flash"]
     assert pilot["total_usd"] < 2.0 and full["total_usd"] < 3.0
+
+
+def test_force_submit_converts_stubborn_model_to_completed():
+    """A model that never volunteers a verdict (like the live Flash/Argon) must still complete,
+    because the final turns offer only the submit tool. Validated offline, no API."""
+    from agent.loop import run_investigation
+    from agent.mock_client import MockClient
+    from grade.key import build_key
+    from grade import scorer
+    for name in ["incident1_skipped_cdc", "incident5_compound"]:
+        con, key = build_key(name)
+        r = run_investigation(con, MockClient(con, mode="stubborn"), max_turns=8)
+        assert r["status"] == "completed", f"{name}: {r['status']}"
+        assert r["verdict"] is not None
+        g = scorer.grade(con, key, r["verdict"], log=r["log"], tool_stats=r["tool_stats"])
+        assert g["score"] > 0

@@ -36,6 +36,24 @@ class MockClient:
             return {"function_call": None, "verdict": None, "usage": self.usage,
                     "status": "ok", "error": None}   # stalls (prose, no tool call)
 
+        if self.mode == "stubborn":
+            # Reproduces the observed live behaviour: the model keeps investigating and will
+            # NOT call submit_investigation_verdict while other tools are available -- but when
+            # the tools offered are restricted to only the submit tool, it submits. This lets
+            # us prove the "force submit on the final turns" fix works, offline.
+            tool_names = {t.get("name") for t in (tools or [])}
+            only_submit = tool_names == {"submit_investigation_verdict"}
+            if only_submit:
+                v = self._verdict_from_world()
+                return {"function_call": {"name": "submit_investigation_verdict", "args": v,
+                                          "call_id": "c-submit"},
+                        "verdict": v, "usage": self.usage, "status": "ok", "error": None}
+            # otherwise keep investigating (never volunteers the verdict)
+            return {"function_call": {"name": "run_sql",
+                                      "args": {"tier": "mart", "query": "SELECT belnr FROM dbx_ar_mart"},
+                                      "call_id": "c-sql"},
+                    "verdict": None, "usage": self.usage, "status": "ok", "error": None}
+
         if self._plan is None:
             self._plan = self._build_plan()
         if self._i >= len(self._plan):
@@ -106,3 +124,8 @@ class MockClient:
         }
         plan.append({"name": "submit_investigation_verdict", "args": verdict})
         return plan
+
+    def _verdict_from_world(self):
+        """The correct verdict for this world (used by stubborn mode when forced to submit)."""
+        plan = self._build_plan()
+        return plan[-1]["args"]

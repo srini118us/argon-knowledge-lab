@@ -62,6 +62,11 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
     turns = 0
 
     nudged = False   # whether we've already told the model to submit its verdict
+    # The restricted schema used to FORCE a verdict on the final turns: only the submit tool
+    # is offered, so the model's only possible action is to submit its structured diagnosis.
+    submit_only = [t for t in tool_schema
+                   if t.get("name") == "submit_investigation_verdict"]
+    FORCE_FROM = max(1, max_turns - 2)   # force on the last 2 turns
 
     def _nudge():
         """Ask the model, once, to finalise by calling submit_investigation_verdict now."""
@@ -72,7 +77,13 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=No
             "proposed_remediations, and verification."})
 
     for turns in range(1, max_turns + 1):
-        resp = client.create(messages=messages, tools=tool_schema,
+        # On the final turns, offer ONLY the submit tool so the model must produce a verdict.
+        force = turns >= FORCE_FROM
+        this_schema = submit_only if (force and submit_only) else tool_schema
+        if force and not nudged:
+            nudged = True
+            _nudge()
+        resp = client.create(messages=messages, tools=this_schema,
                              system=schemas.SYSTEM_PROMPT)
         u = resp.get("usage") or {}
         for k in usage:
