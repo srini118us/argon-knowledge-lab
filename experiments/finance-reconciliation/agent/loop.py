@@ -43,13 +43,18 @@ def _dispatch(tools: Tools, name: str, args: dict):
     return {"error": "unknown_tool", "detail": f"no tool named {name}"}
 
 
-def run_investigation(con, client, *, max_turns: int = MAX_TURNS) -> dict:
+def run_investigation(con, client, *, max_turns: int = MAX_TURNS, tool_schema=None) -> dict:
     """Run one investigation to a verdict or a limit. Returns a result dict with the verdict,
     the tool log, usage totals, completion status, and turn count.
 
     `client.create(messages, tools, system)` must return the normalised shape above.
+    `tool_schema` is what gets passed to the client as `tools` (the real Gemini adapter wants
+    schemas.GEMINI_TOOLS; the mock ignores it). Defaults to GEMINI_TOOLS.
     """
     tools = Tools(con)
+    tool_schema = tool_schema if tool_schema is not None else schemas.GEMINI_TOOLS
+    if hasattr(client, "reset"):
+        client.reset()
     messages = [{"role": "user", "content": schemas.initial_user_message(_reported(con))}]
     usage = {"input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0}
     verdict = None
@@ -57,7 +62,7 @@ def run_investigation(con, client, *, max_turns: int = MAX_TURNS) -> dict:
     turns = 0
 
     for turns in range(1, max_turns + 1):
-        resp = client.create(messages=messages, tools=schemas.FUNCTION_DECLARATIONS,
+        resp = client.create(messages=messages, tools=tool_schema,
                              system=schemas.SYSTEM_PROMPT)
         u = resp.get("usage") or {}
         for k in usage:

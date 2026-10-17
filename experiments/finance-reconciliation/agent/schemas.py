@@ -97,6 +97,15 @@ FUNCTION_DECLARATIONS = [
 
 TOOL_NAMES = [f["name"] for f in FUNCTION_DECLARATIONS]
 
+# The repo's working Interactions-API tool format (see src/argon_lab/arms.py TOOLS):
+# {"type": "function", "name", "description", "parameters"}. This is what the real Gemini
+# adapter passes as `tools=...`. Derived from FUNCTION_DECLARATIONS so the two never drift.
+GEMINI_TOOLS = [
+    {"type": "function", "name": f["name"], "description": f["description"],
+     "parameters": f["parameters"]}
+    for f in FUNCTION_DECLARATIONS
+]
+
 SYSTEM_PROMPT = (
     "You are a senior data engineer investigating a finance reconciliation discrepancy. "
     "Accounts Receivable in SAP S/4HANA does not match a downstream Databricks finance mart, "
